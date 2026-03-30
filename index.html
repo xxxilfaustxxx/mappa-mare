@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico Mediterraneo - Google Full</title>
+    <title>Plotter Nautico Mediterraneo</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -13,42 +13,48 @@
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
+        /* Legenda Richiudibile */
         .legend {
-            position: absolute; bottom: 40px; right: 20px;
-            background: white; padding: 12px; border-radius: 8px;
+            position: absolute; bottom: 40px; right: 10px;
+            background: white; padding: 0; border-radius: 8px;
             z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             font-size: 11px; border-top: 5px solid #00b4d8;
+            width: 140px;
         }
-        .legend h4 { margin: 0 0 8px 0; font-size: 13px; color: #0077b6; text-align: center; }
-        .legend div { display: flex; align-items: center; margin-bottom: 2px; }
-        .legend i { width: 25px; height: 12px; margin-right: 8px; border: 0.5px solid #ccc; }
+        .legend-header {
+            padding: 8px; background: #f8f9fa; cursor: pointer; text-align: center;
+            border-bottom: 1px solid #eee; border-radius: 4px 4px 0 0; font-weight: bold;
+            user-select: none;
+        }
+        .legend-body { padding: 8px 12px; display: none; } /* Nascosto di default */
+        .legend-body.open { display: block; }
+        .legend div { display: flex; align-items: center; margin-bottom: 3px; }
+        .legend i { width: 20px; height: 10px; margin-right: 6px; border: 0.5px solid #aaa; display: inline-block; }
 
+        /* Display Coordinate */
         .coords-display {
             position: absolute; bottom: 10px; left: 10px;
-            background: rgba(0,0,0,0.8); color: #00ff00; padding: 5px 12px;
+            background: rgba(0,20,40,0.85); color: #00ff00; padding: 6px 14px;
             border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; z-index: 1001;
-            border: 1px solid #333;
+            border: 1px solid #333; letter-spacing: 1px;
         }
 
+        /* Strumenti Laterali (Spostati più in basso per non coprire zoom/geocoder) */
         .side-tools {
-            position: absolute; top: 150px; left: 10px;
-            z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+            position: absolute; top: 180px; left: 10px;
+            z-index: 1000; display: flex; flex-direction: column; gap: 6px;
         }
         .tool-btn {
-            background: white; width: 36px; height: 36px;
-            border-radius: 4px; border: 2px solid rgba(0,0,0,0.2);
+            background: white; width: 34px; height: 34px;
+            border-radius: 4px; border: none;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
-            font-size: 18px; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-size: 16px; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.2s;
         }
-        .tool-btn:hover { background: #f4f4f4; color: #0077b6; }
+        .tool-btn:hover { background: #e6f2ff; color: #0077b6; transform: scale(1.1); }
 
-        .sea-layer { filter: saturate(150%) contrast(110%); }
-
-        .leaflet-pane.leaflet-marker-pane span {
-            color: #000 !important; font-weight: 900 !important;
-            text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
-            font-size: 12px; text-transform: uppercase;
-        }
+        /* Fix specifico per il plugin di misura che si sovrapponeva ai bottoni */
+        .polyline-measure-control { margin-top: 100px !important; }
     </style>
 </head>
 <body>
@@ -57,24 +63,25 @@
 <div id="coords" class="coords-display">LAT: 0.00000 | LON: 0.00000</div>
 
 <div class="side-tools">
-    <div class="tool-btn" onclick="getLocation()" title="La mia posizione">🎯</div>
-    <div class="tool-btn" onclick="clearAllWaypoints()" title="Cancella Waypoints" style="color:red;">📍🗑️</div>
-    <div class="tool-btn" id="clear-routes-btn" title="Cancella Rotte" style="color:#0077b6;">📏🗑️</div>
+    <div class="tool-btn" onclick="getLocation()" title="La mia posizione esatta">📍</div>
+    <div class="tool-btn" onclick="clearAllWaypoints()" title="Cancella tutti i Waypoint" style="color:red;">🗑️</div>
 </div>
 
 <div class="legend">
-    <h4>Profondità (m)</h4>
-    <div><i style="background: #e0f2f1"></i> 0 - 10 m</div>
-    <div><i style="background: #b2ebf2"></i> 10 - 20 m</div>
-    <div><i style="background: #80deea"></i> 20 - 30 m</div>
-    <div><i style="background: #4dd0e1"></i> 30 - 40 m</div>
-    <div><i style="background: #26c6da"></i> 40 - 50 m</div>
-    <div><i style="background: #00bcd4"></i> 50 - 60 m</div>
-    <div><i style="background: #00acc1"></i> 60 - 70 m</div>
-    <div><i style="background: #0097a7"></i> 70 - 80 m</div>
-    <div><i style="background: #00838f"></i> 80 - 90 m</div>
-    <div><i style="background: #006064"></i> 90 - 100 m</div>
-    <div><i style="background: #01579b"></i> > 100 m</div>
+    <div class="legend-header" onclick="this.nextElementSibling.classList.toggle('open')">Profondità (m) ▼</div>
+    <div class="legend-body">
+        <div><i style="background: #e0f2f1"></i> 0 - 10 m</div>
+        <div><i style="background: #b2ebf2"></i> 10 - 20 m</div>
+        <div><i style="background: #80deea"></i> 20 - 30 m</div>
+        <div><i style="background: #4dd0e1"></i> 30 - 40 m</div>
+        <div><i style="background: #26c6da"></i> 40 - 50 m</div>
+        <div><i style="background: #00bcd4"></i> 50 - 60 m</div>
+        <div><i style="background: #00acc1"></i> 60 - 70 m</div>
+        <div><i style="background: #0097a7"></i> 70 - 80 m</div>
+        <div><i style="background: #00838f"></i> 80 - 90 m</div>
+        <div><i style="background: #006064"></i> 90 - 100 m</div>
+        <div><i style="background: #01579b"></i> > 100 m</div>
+    </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -82,83 +89,116 @@
 <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
 
 <script>
-    const map = L.map('map', { maxZoom: 19, minZoom: 4 }).setView([42.0, 14.0], 6);
+    const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
 
-    // --- BASE LAYERS GOOGLE ---
-    const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+    // Zoom in basso a sinistra per non conflittare con gli strumenti
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+    // --- MAPPE DI BASE SICURE E STABILI (Sostituite Google non ufficiale con ESRI) ---
+    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri', maxZoom: 19
     }).addTo(map);
 
-    const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri', maxZoom: 19
     });
 
-    const googleTerrain = L.tileLayer('http://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+    const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri', maxZoom: 19
     });
 
     // --- OVERLAYS ---
+    // Rimosso il filtro CSS (sea-layer) per evitare le linee bianche tra le tile
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        className: 'sea-layer', opacity: 0.8
-    }).addTo(map);
+        opacity: 0.8
+    });
 
-    const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
+    const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
 
-    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-        pane: 'markerPane'
-    }).addTo(map);
+    // Le etichette testuali vanno messe nel pannello overlay predefinito, non nel markerPane
+    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // Menu Controllo con Terreno reinserito
+    // Menu Controllo
     const baseMaps = { 
-        "Google Stradale": googleStreets, 
-        "Google Satellite": googleHybrid,
-        "Google Terreno": googleTerrain
+        "Mappa Stradale": esriStreets, 
+        "Satellite Puro": esriSatellite,
+        "Satellite + Nomi (Ibrido)": L.layerGroup([esriSatellite, esriHybrid])
     };
 
     const overlays = { 
-        "Profondità (Colore)": bathy, 
-        "Numeri & Dati Nautici": seaMarks, 
+        "Batimetria (Colori Fondali)": bathy, 
+        "Segnaletica Nautica": seaMarks, 
         "Nomi Località": labels 
     };
 
-    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+    L.control.layers(baseMaps, overlays, { collapsed: false, position: 'topright' }).addTo(map);
 
-    // RIGHELLO NM
+    // RIGHELLO NAUTICO
     const polylineMeasure = L.control.polylineMeasure({
-        position: 'topleft', unit: 'nauticalmiles', showBearings: true, clearControlTitle: 'Cancella'
+        position: 'topleft', 
+        unit: 'nauticalmiles', 
+        showBearings: true,
+        bearingTextIn: 'Rotta: {bearing}°',
+        clearControlTitle: 'Cancella misurazioni'
     }).addTo(map);
 
-    document.getElementById('clear-routes-btn').onclick = function() {
-        polylineMeasure._clearAllMeasurements();
-    };
-
     // COORDINATE E RICERCA
-    L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
+    L.Control.geocoder({ placeholder: "Cerca porto, località..." }).addTo(map);
     map.on('mousemove', function(e) {
         document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
     });
 
-    // WAYPOINTS
+    // GESTIONE WAYPOINTS
     let waypointGroup = L.layerGroup().addTo(map);
+    
+    // Click destro per aggiungere waypoint
     map.on('contextmenu', function(e) {
-        const waypoint = L.marker(e.latlng, { draggable: true }).addTo(waypointGroup);
-        const update = (ll) => {
-            waypoint.bindPopup(`<b>Punto Nave</b><br>LAT: ${ll.lat.toFixed(5)}<br>LON: ${ll.lng.toFixed(5)}<br><small style="color:red;">Doppio click per eliminare</small>`).openPopup();
+        e.originalEvent.preventDefault(); // Blocca il menu del browser
+        
+        const icon = L.divIcon({
+            className: '',
+            html: '<div style="background:#0077b6; width:14px; height:14px; border:2px solid white; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5);"></div>',
+            iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+
+        const waypoint = L.marker(e.latlng, { draggable: true, icon: icon }).addTo(waypointGroup);
+        
+        const updatePopup = (ll) => {
+            waypoint.bindPopup(`
+                <b>Waypoint</b><br>
+                LAT: ${ll.lat.toFixed(5)}<br>
+                LON: ${ll.lng.toFixed(5)}<br>
+                <small style="color:#888; cursor:pointer;" onclick="this.closest('.leaflet-popup')._source.remove()">[Clicca per eliminare]</small>
+            `);
         };
-        update(e.latlng);
-        waypoint.on('dblclick', () => waypointGroup.removeLayer(waypoint));
-        waypoint.on('dragend', (ev) => update(ev.target.getLatLng()));
+        
+        updatePopup(e.latlng);
+        waypoint.on('dragend', (ev) => updatePopup(ev.target.getLatLng()));
     });
 
     function clearAllWaypoints() {
         if(confirm("Vuoi cancellare tutti i Waypoint?")) waypointGroup.clearLayers();
     }
 
+    // GEOLOCALIZZAZIONE CORRETTA (Senza listener multipli)
+    let locationMarker = null;
+    let locationCircle = null;
+
     function getLocation() {
+        if (locationMarker) {
+            map.removeLayer(locationMarker);
+            map.removeLayer(locationCircle);
+        }
+
         map.locate({setView: true, maxZoom: 15});
-        map.on('locationfound', (e) => {
-            L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1}).addTo(map);
-            L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
+        
+        map.once('locationfound', (e) => { // USO 'ONCE' invece di 'ON' per evitare sovrapposizioni
+            locationCircle = L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1, weight: 1}).addTo(map);
+            locationMarker = L.marker(e.latlng).addTo(map).bindPopup("La tua posizione esatta").openPopup();
+        });
+
+        map.once('locationerror', (e) => {
+            alert("Impossibile trovare la posizione. Assicurati che il GPS sia attivo.");
         });
     }
 </script>
