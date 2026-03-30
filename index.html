@@ -13,7 +13,6 @@
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* Legenda */
         .legend {
             position: absolute; bottom: 40px; right: 20px;
             background: white; padding: 12px; border-radius: 8px;
@@ -24,7 +23,6 @@
         .legend div { display: flex; align-items: center; margin-bottom: 2px; }
         .legend i { width: 25px; height: 12px; margin-right: 8px; border: 0.5px solid #ccc; }
 
-        /* Display Coordinate Live */
         .coords-display {
             position: absolute; bottom: 10px; left: 10px;
             background: rgba(0,0,0,0.8); color: #00ff00; padding: 5px 12px;
@@ -32,7 +30,6 @@
             border: 1px solid #333;
         }
 
-        /* Pannello Strumenti Sinistro */
         .side-tools {
             position: absolute; top: 150px; left: 10px;
             z-index: 1000; display: flex; flex-direction: column; gap: 8px;
@@ -45,10 +42,8 @@
         }
         .tool-btn:hover { background: #f4f4f4; color: #0077b6; }
 
-        /* Filtro Mare */
         .sea-layer { filter: saturate(150%) contrast(110%); }
 
-        /* Etichette città */
         .leaflet-pane.leaflet-marker-pane span {
             color: #000 !important; font-weight: 900 !important;
             text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
@@ -59,7 +54,7 @@
 <body>
 
 <div id="map"></div>
-<div id="coords" class="coords-display">Lat: 0.00000, Lon: 0.00000</div>
+<div id="coords" class="coords-display">LAT: 0.00000 | LON: 0.00000</div>
 
 <div class="side-tools">
     <div class="tool-btn" onclick="getLocation()" title="La mia posizione">🎯</div>
@@ -87,19 +82,22 @@
 <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
 
 <script>
-    // Inizializzazione mappa
     const map = L.map('map', { maxZoom: 19, minZoom: 4 }).setView([42.0, 14.0], 6);
 
-    // GOOGLE LAYERS
+    // --- BASE LAYERS GOOGLE ---
     const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
         maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     }).addTo(map);
 
     const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3']
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     });
 
-    // LAYER MARE
+    const googleTerrain = L.tileLayer('http://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',{
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+    });
+
+    // --- OVERLAYS ---
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         className: 'sea-layer', opacity: 0.8
     }).addTo(map);
@@ -110,28 +108,31 @@
         pane: 'markerPane'
     }).addTo(map);
 
-    L.control.layers({ "Google Stradale": googleStreets, "Google Satellite": googleHybrid }, 
-                     { "Profondità (Colore)": bathy, "Dati Nautici": seaMarks, "Nomi Località": labels }, { collapsed: false }).addTo(map);
+    // Menu Controllo con Terreno reinserito
+    const baseMaps = { 
+        "Google Stradale": googleStreets, 
+        "Google Satellite": googleHybrid,
+        "Google Terreno": googleTerrain
+    };
 
-    // --- CONFIGURAZIONE RIGHELLO CORRETTA (Miglia Nautiche & Metri) ---
+    const overlays = { 
+        "Profondità (Colore)": bathy, 
+        "Numeri & Dati Nautici": seaMarks, 
+        "Nomi Località": labels 
+    };
+
+    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+
+    // RIGHELLO NM
     const polylineMeasure = L.control.polylineMeasure({
-        position: 'topleft',
-        unit: 'nauticalmiles', // Unità primaria: Miglia Nautiche
-        showBearings: true,     // Mostra la prua (gradi)
-        bearingTextIn: 'In entrata',
-        bearingTextOut: 'In uscita',
-        tooltipTextDragandadd: 'Trascina e aggiungi',
-        tooltipTextResume: 'Riprendi linea',
-        tooltipTextAdd: 'Aggiungi punto',
-        clearControlTitle: 'Cancella misurazioni'
+        position: 'topleft', unit: 'nauticalmiles', showBearings: true, clearControlTitle: 'Cancella'
     }).addTo(map);
 
-    // Pulsante cancellazione rotte
     document.getElementById('clear-routes-btn').onclick = function() {
         polylineMeasure._clearAllMeasurements();
     };
 
-    // RICERCA E COORDINATE
+    // COORDINATE E RICERCA
     L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
     map.on('mousemove', function(e) {
         document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
@@ -157,7 +158,7 @@
         map.locate({setView: true, maxZoom: 15});
         map.on('locationfound', (e) => {
             L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1}).addTo(map);
-            L.marker(e.latlng).addTo(map).bindPopup("Sei qui").openPopup();
+            L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
         });
     }
 </script>
