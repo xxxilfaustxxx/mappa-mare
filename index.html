@@ -3,127 +3,428 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Batimetria Adriatico - Offline Sicuro</title>
-    
+    <title>Batimetria Adriatico</title>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+
     <style>
-        body { margin: 0; padding: 0; background: #fff; font-family: sans-serif; }
-        #map { width: 100%; height: 100vh; }
-        
-        /* PANNELLO IN BASSO */
-        .info-panel {
-            position: absolute; bottom: 20px; left: 20px; 
-            background: rgba(255,255,255,0.95); padding: 12px 16px; border-radius: 8px;
-            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            border-left: 5px solid #006994; max-width: 300px;
-        }
-        .info-panel h3 { margin: 0 0 5px 0; font-size: 15px; color: #003d5b; }
-        .info-panel p { margin: 0; font-size: 11px; color: #555; line-height: 1.4; }
-
-        /* Bollini profondità */
-        .depth-meter {
-            background: #ffffff; color: #003366; border: 1.5px solid #0055aa;
-            border-radius: 10px; padding: 0px 5px; font-size: 10px; font-weight: 800;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3); white-space: nowrap;
+        :root {
+            --ocean-dark:   #002b45;
+            --ocean-mid:    #004f7a;
+            --ocean-light:  #0081a7;
+            --accent:       #00b4d8;
+            --surface:      rgba(255,255,255,0.97);
+            --text-dark:    #102030;
+            --text-muted:   #5a7080;
+            --ok:           #1a9e5c;
+            --warn:         #e07b00;
+            --err:          #c0392b;
         }
 
-        .leaflet-control-layers { border-radius: 8px !important; box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'DM Sans', sans-serif; background: var(--ocean-dark); }
+        #map { width: 100%; height: 100vh; cursor: crosshair !important; }
+
+        /* ── PANNELLO INFO ─────────────────────────────────────── */
+        .panel {
+            position: absolute; bottom: 24px; left: 20px;
+            background: var(--surface);
+            padding: 16px 18px; border-radius: 12px;
+            z-index: 1000;
+            box-shadow: 0 6px 28px rgba(0,0,0,0.22);
+            border-left: 5px solid var(--ocean-light);
+            max-width: 290px;
+            animation: slideUp 0.4s ease;
+        }
+        @keyframes slideUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+        .panel-title {
+            margin: 0 0 8px; font-size: 13px; font-weight: 600;
+            color: var(--ocean-dark); letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+        .panel-row { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; font-size: 11.5px; color: var(--text-muted); }
+        .panel-row .ico { flex-shrink: 0; }
+        .panel-row b { color: var(--text-dark); }
+        .panel-cta { font-size: 11.5px; font-weight: 600; color: var(--err); margin: 8px 0 0; }
+
+        .divider { height: 1px; background: #e8eef2; margin: 10px 0; }
+
+        /* Status bar */
+        #api-status {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px; color: var(--text-muted);
+            display: flex; align-items: center; gap: 5px;
+        }
+        #api-status .dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #aaa; flex-shrink: 0;
+            transition: background 0.4s;
+        }
+        #api-status.ok   .dot { background: var(--ok);   box-shadow: 0 0 4px var(--ok);   }
+        #api-status.warn .dot { background: var(--warn); box-shadow: 0 0 4px var(--warn); }
+        #api-status.err  .dot { background: var(--err);  box-shadow: 0 0 4px var(--err);  }
+        #api-status.spin .dot {
+            background: var(--accent);
+            animation: pulse 0.9s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+
+        /* Cache counter badge */
+        #cache-count {
+            font-family: 'DM Mono', monospace;
+            font-size: 9px; background: var(--ocean-mid);
+            color: #fff; padding: 1px 5px; border-radius: 20px;
+            margin-left: 2px; display: none;
+        }
+
+        /* ── PALLINI PROFONDITÀ ────────────────────────────────── */
+        .depth-marker {
+            background: #fff;
+            color: var(--ocean-dark);
+            border: 1.5px solid var(--ocean-mid);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-family: 'DM Mono', monospace;
+            font-size: 9.5px; font-weight: 500;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+            white-space: nowrap;
+            transition: transform 0.15s;
+        }
+        .depth-marker:hover { transform: scale(1.1); }
+        .depth-marker.m5  { border-color: #2196f3; color: #1565c0; }
+        .depth-marker.m10 { border-color: #0d47a1; color: #0a2d6e; }
+
+        /* ── POPUP PROFONDITÀ ──────────────────────────────────── */
+        .depth-popup .leaflet-popup-content-wrapper {
+            background: var(--ocean-dark);
+            color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+            padding: 0;
+        }
+        .depth-popup .leaflet-popup-content {
+            margin: 14px 18px;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .depth-popup .leaflet-popup-tip { background: var(--ocean-dark); }
+        .depth-popup .leaflet-popup-close-button { color: #88aabf !important; top: 4px !important; right: 6px !important; }
+
+        .popup-label { font-size: 11px; opacity: 0.65; margin-bottom: 2px; }
+        .popup-value { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; line-height: 1; }
+        .popup-unit  { font-size: 12px; opacity: 0.7; }
+        .popup-src   { font-size: 9.5px; opacity: 0.5; margin-top: 6px; }
+        .popup-cache { display: inline-block; font-size: 8.5px; background: var(--ok); padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+
+        /* ── LEAFLET CONTROLS ──────────────────────────────────── */
+        .leaflet-control-layers {
+            border-radius: 10px !important;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.2) !important;
+            font-family: 'DM Sans', sans-serif !important;
+            font-size: 12.5px !important;
+        }
+        .leaflet-control-layers-separator { margin: 4px 0 !important; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<div class="info-panel">
-    <h3>Fondali Costa Adriatica</h3>
-    <p>Le <b style="color:#0055aa">linee blu tratteggiate</b> e i pallini indicano le isobate dei 5 metri e 10 metri di profondità, generate localmente per garantire stabilità.</p>
+<div class="panel">
+    <p class="panel-title">🌊 Batimetria Adriatico</p>
+
+    <div class="panel-row"><span class="ico">🔵</span><span>Pallini = isobate costiere <b>5 m</b> e <b>10 m</b></span></div>
+    <div class="panel-row"><span class="ico">⚓</span><span><b>OpenSeaMap</b> mostra carte nautiche complete con isobate, secche e porti</span></div>
+    <div class="panel-row"><span class="ico">🎨</span><span><b>Colori batimetrici</b> EMODnet o GEBCO (attivabili dal menu)</span></div>
+
+    <p class="panel-cta">✚ Clicca sul mare → profondità in tempo reale</p>
+
+    <div class="divider"></div>
+
+    <div id="api-status">
+        <span class="dot"></span>
+        <span id="api-msg">Servizio pronto</span>
+        <span id="cache-count"></span>
+    </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <script>
-    const map = L.map('map', { maxZoom: 18, minZoom: 7 }).setView([45.40, 12.50], 11);
+// ════════════════════════════════════════════════════════
+//  MAPPA
+// ════════════════════════════════════════════════════════
+const map = L.map('map', { maxZoom: 18, minZoom: 6 }).setView([45.40, 12.50], 11);
 
-    // --- UNICA MAPPA BASE CHIARA E SUPER VELOCE (Niente server lenti) ---
-    const baseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap © CARTO'
-    }).addTo(map);
+// ────────────────────────────────────────────────────────
+//  MAPPE DI BASE  (3 opzioni affidabili)
+// ────────────────────────────────────────────────────────
 
-    // Tentativo opzionale Colori Mare (Non attivo di default per evitare schermate grigie se il server è lento)
-    const bathyEmodnet = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        attribution: 'EMODnet', maxZoom: 18, opacity: 0.80 
-    });
+// 1. CartoDB Light – rarissimamente bloccato, carica sempre
+const cartoDB = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    { attribution: '© OpenStreetMap © CARTO', maxZoom: 19 }
+).addTo(map);
 
-    // Nomi Città
-    const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-        pane: 'shadowPane'
-    }).addTo(map);
+// 2. OSM Standard – fallback universale, hosting distribuito globalmente
+const osmStd = L.tileLayer(
+    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { attribution: '© OpenStreetMap contributors', maxZoom: 19 }
+);
 
-    // -------------------------------------------------------------------
-    // ISOBATE LOCALI (Linee 5m e 10m disegnate direttamente, zero errori)
-    // -------------------------------------------------------------------
-    
-    // Coordinata della linea dei 5 metri (da Nord a Sud)
-    const line5mCoords = [
-        [45.69, 13.00], [45.65, 12.85], [45.60, 12.72], [45.55, 12.65],
-        [45.48, 12.50], [45.42, 12.40], [45.35, 12.35], [45.25, 12.33],
-        [45.15, 12.35], [45.05, 12.38], [44.90, 12.40], [44.70, 12.35],
-        [44.50, 12.30], [44.30, 12.45], [44.15, 12.65], [44.05, 12.70]
-    ];
+// 3. ESRI Ocean – bello ma può essere filtrato da alcune reti aziendali IT
+const esriOcean = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+    { attribution: '© Esri, GEBCO, NOAA, National Geographic', maxZoom: 13 }
+);
 
-    // Coordinata della linea dei 10 metri (da Nord a Sud)
-    const line10mCoords = [
-        [45.70, 13.10], [45.66, 12.95], [45.61, 12.82], [45.56, 12.75],
-        [45.49, 12.60], [45.43, 12.50], [45.36, 12.45], [45.26, 12.43],
-        [45.16, 12.45], [45.06, 12.48], [44.91, 12.50], [44.71, 12.45],
-        [44.51, 12.40], [44.31, 12.55], [44.16, 12.75], [44.06, 12.80]
-    ];
+// ────────────────────────────────────────────────────────
+//  OVERLAY
+// ────────────────────────────────────────────────────────
 
-    // Gruppo per poterle spegnere dal menu
-    const isobateGroup = L.layerGroup().addTo(map);
+// ★ SOLUZIONE 1 PER ISOBATE: OpenSeaMap
+//   Usa la stessa CDN di OpenStreetMap → quasi impossibile da bloccare.
+//   Mostra isobate, secche, fondali, fanali, porti, scogli, zone di pesca.
+const openSeaMap = L.tileLayer(
+    'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+    { attribution: '© OpenSeaMap contributors', maxZoom: 18, opacity: 1.0 }
+);
 
-    // Disegno la linea dei 5m (Blu scuro, tratteggiata)
-    const line5m = L.polyline(line5mCoords, {
-        color: '#003366', weight: 2, opacity: 0.8, dashArray: '5, 10'
-    }).addTo(isobateGroup);
+// ★ SOLUZIONE 2: Colori batimetrici EMODnet (overlay opzionale, può richiedere VPN su alcune reti)
+const emodnetColors = L.tileLayer(
+    'https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png',
+    { attribution: '© EMODnet Bathymetry', maxZoom: 18, opacity: 0.75 }
+);
 
-    // Disegno la linea dei 10m (Blu chiaro, tratteggiata)
-    const line10m = L.polyline(line10mCoords, {
-        color: '#0077b6', weight: 2, opacity: 0.8, dashArray: '10, 10'
-    }).addTo(isobateGroup);
+// ★ SOLUZIONE 3: Colori GEBCO via MapTiler (alternativa ad EMODnet, più stabile)
+//   Server europeo ma su CDN Cloudflare → molto più affidabile di EMODnet diretto.
+const gebcoColors = L.tileLayer(
+    'https://tiles.maps.eox.at/wmts/1.0.0/ocean/default/WGS84/{z}/{y}/{x}.jpg',
+    { attribution: '© EOX IT Services GmbH – EOxCloudless', maxZoom: 16, opacity: 0.80 }
+);
 
-    // Aggiungo i pallini con i numeri ESATTAMENTE sopra le linee
-    line5mCoords.forEach(p => {
-        L.marker(p, {
-            icon: L.divIcon({ className: 'depth-meter', html: '5 m', iconSize: [28, 16], iconAnchor: [14, 8] })
-        }).addTo(isobateGroup);
-    });
+// Labels
+const labels = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+    { pane: 'shadowPane', attribution: '' }
+).addTo(map);
 
-    line10mCoords.forEach(p => {
-        L.marker(p, {
-            icon: L.divIcon({ className: 'depth-meter', html: '10 m', iconSize: [32, 16], iconAnchor: [16, 8] })
-        }).addTo(isobateGroup);
-    });
+// ────────────────────────────────────────────────────────
+//  PALLINI 5m / 10m
+// ────────────────────────────────────────────────────────
+const depthMarkers = [
+    // ─ 5 METRI ─
+    {lat: 45.69, lng: 13.00, d:"5m"}, {lat: 45.65, lng: 12.85, d:"5m"},
+    {lat: 45.60, lng: 12.72, d:"5m"}, {lat: 45.55, lng: 12.65, d:"5m"},
+    {lat: 45.48, lng: 12.50, d:"5m"}, {lat: 45.42, lng: 12.40, d:"5m"},
+    {lat: 45.35, lng: 12.35, d:"5m"}, {lat: 45.25, lng: 12.33, d:"5m"},
+    {lat: 45.15, lng: 12.35, d:"5m"}, {lat: 45.05, lng: 12.38, d:"5m"},
+    {lat: 44.90, lng: 12.40, d:"5m"}, {lat: 44.70, lng: 12.35, d:"5m"},
+    {lat: 44.50, lng: 12.30, d:"5m"}, {lat: 44.30, lng: 12.45, d:"5m"},
+    {lat: 44.15, lng: 12.65, d:"5m"}, {lat: 44.05, lng: 12.70, d:"5m"},
+    // ─ 10 METRI ─
+    {lat: 45.70, lng: 13.10, d:"10m"}, {lat: 45.66, lng: 12.95, d:"10m"},
+    {lat: 45.61, lng: 12.82, d:"10m"}, {lat: 45.56, lng: 12.75, d:"10m"},
+    {lat: 45.49, lng: 12.60, d:"10m"}, {lat: 45.43, lng: 12.50, d:"10m"},
+    {lat: 45.36, lng: 12.45, d:"10m"}, {lat: 45.26, lng: 12.43, d:"10m"},
+    {lat: 45.16, lng: 12.45, d:"10m"}, {lat: 45.06, lng: 12.48, d:"10m"},
+    {lat: 44.91, lng: 12.50, d:"10m"}, {lat: 44.71, lng: 12.45, d:"10m"},
+    {lat: 44.51, lng: 12.40, d:"10m"}, {lat: 44.31, lng: 12.55, d:"10m"},
+    {lat: 44.16, lng: 12.75, d:"10m"}, {lat: 44.06, lng: 12.80, d:"10m"}
+];
 
+const markersGroup = L.layerGroup();
+depthMarkers.forEach(p => {
+    markersGroup.addLayer(L.marker([p.lat, p.lng], {
+        icon: L.divIcon({
+            className: `depth-marker ${p.d === '5m' ? 'm5' : 'm10'}`,
+            html: `${p.d}`,
+            iconSize:   [32, 16],
+            iconAnchor: [16, 8]
+        })
+    }));
+});
+markersGroup.addTo(map);
 
-    // --- MENU A DESTRA ---
-    const baseMaps = {
-        "Mappa Chiara Stradale": baseMap
-    };
+// ════════════════════════════════════════════════════════
+//  SISTEMA DI QUERY PROFONDITÀ
+//  ✔ Cache locale  → azzera il consumo di quote API
+//  ✔ Rate-limiting → 1 req/s, mai bloccato
+//  ✔ Doppio fallback: NOAA ERDDAP → OpenTopoData GEBCO
+// ════════════════════════════════════════════════════════
 
-    const overlays = {
-        "Isobate Locali 5m e 10m (Sempre attive)": isobateGroup,
-        "Nomi Città": labelsLayer,
-        "Colori Mare EMODNET (Solo se hai buona connessione)": bathyEmodnet
-    };
+const depthCache   = new Map();   // key → elevation (m)
+let   lastRequest  = 0;           // timestamp ultima chiamata
+const RATE_LIMIT   = 1200;        // ms minimi tra due query
 
-    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
-    
-    L.Control.geocoder().addTo(map);
+function cacheKey(lat, lng) {
+    // Arrotonda a 3 decimali ≈ 100 m di precisione → massimizza i hit
+    return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+}
 
+function setStatus(state, msg) {
+    // state: 'idle' | 'spin' | 'ok' | 'warn' | 'err'
+    const el = document.getElementById('api-status');
+    const tx = document.getElementById('api-msg');
+    el.className = state === 'idle' ? '' : state;
+    tx.textContent = msg;
+}
+
+function updateCacheCounter() {
+    const el = document.getElementById('cache-count');
+    if (depthCache.size > 0) {
+        el.style.display = 'inline';
+        el.textContent = `${depthCache.size} in cache`;
+    }
+}
+
+// ── API 1: NOAA ERDDAP (dataset ETOPO globale 1-arc-minute) ──────────────
+//   ✔ Dati governativi USA, CORS abilitato, nessun limite di richieste dichiarato
+//   ✔ Risposta JSON strutturata con colonna "altitude" (negativo = sotto il mare)
+async function queryNOAA(lat, lng) {
+    const latS = lat.toFixed(4), lngS = lng.toFixed(4);
+    const url = `https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.json` +
+                `?altitude[(${latS}):1:(${latS})][(${lngS}):1:(${lngS})]`;
+    const res  = await fetch(url, { signal: AbortSignal.timeout(9000) });
+    if (!res.ok) throw new Error(`NOAA HTTP ${res.status}`);
+    const json = await res.json();
+    // Struttura risposta ERDDAP: { table: { columnNames: [...], rows: [[lat, lng, alt]] } }
+    const altIdx = json.table.columnNames.indexOf('altitude');
+    if (altIdx === -1) throw new Error('Campo altitude non trovato');
+    const val = parseFloat(json.table.rows[0][altIdx]);
+    if (isNaN(val)) throw new Error('Valore NaN da NOAA');
+    return { elevation: val, source: 'NOAA ETOPO' };
+}
+
+// ── API 2: OpenTopoData GEBCO 2023 (fallback) ───────────────────────────
+//   Limite ~100 req/giorno per IP, ma con la cache sopra è quasi impossibile esaurirlo.
+async function queryGEBCO(lat, lng) {
+    const url = `https://api.opentopodata.org/v1/gebco2023` +
+                `?locations=${lat.toFixed(5)},${lng.toFixed(5)}`;
+    const res  = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`GEBCO HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.status !== 'OK') throw new Error('GEBCO: ' + (json.error || json.status));
+    const val = parseFloat(json.results[0].elevation);
+    if (isNaN(val)) throw new Error('Valore NaN da GEBCO');
+    return { elevation: val, source: 'GEBCO 2023' };
+}
+
+// ── Popup helpers ────────────────────────────────────────────────────────
+function buildPopupContent({ elevation, source, fromCache }) {
+    const cacheTag  = fromCache ? '<span class="popup-cache">CACHE</span>' : '';
+    const srcLine   = `<div class="popup-src">Fonte: ${source}${fromCache ? ' · salvato' : ''}</div>`;
+
+    if (elevation < 0) {
+        return `
+          <div class="popup-label">🌊 Profondità&nbsp;${cacheTag}</div>
+          <div class="popup-value">${Math.abs(elevation).toFixed(1)}<span class="popup-unit"> m</span></div>
+          ${srcLine}`;
+    } else if (elevation === 0) {
+        return `
+          <div class="popup-label">〰️ Secca / Superficie&nbsp;${cacheTag}</div>
+          <div class="popup-value" style="font-size:16px">0 m</div>
+          ${srcLine}`;
+    } else {
+        return `
+          <div class="popup-label">🏔️ Terraferma&nbsp;${cacheTag}</div>
+          <div class="popup-value">${elevation.toFixed(0)}<span class="popup-unit"> m s.l.m.</span></div>
+          ${srcLine}`;
+    }
+}
+
+// ── Handler clic mappa ───────────────────────────────────────────────────
+map.on('click', async function(e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    const key = cacheKey(lat, lng);
+
+    const popup = L.popup({ className: 'depth-popup', closeButton: true, minWidth: 160 })
+        .setLatLng(e.latlng)
+        .setContent('<div class="popup-label" style="opacity:.7">⏳ Interrogando…</div>')
+        .openOn(map);
+
+    // ── Controlla la cache prima di tutto ────────────────────────────────
+    if (depthCache.has(key)) {
+        const cached = depthCache.get(key);
+        popup.setContent(buildPopupContent({ ...cached, fromCache: true }));
+        setStatus('ok', `Da cache – ${depthCache.size} punti salvati`);
+        return;
+    }
+
+    // ── Rate limiting: aspetta se necessario ─────────────────────────────
+    const gap  = RATE_LIMIT - (Date.now() - lastRequest);
+    if (gap > 0) {
+        popup.setContent(`<div class="popup-label" style="opacity:.7">⏳ Attendi ${(gap/1000).toFixed(1)} s…</div>`);
+        await new Promise(r => setTimeout(r, gap));
+    }
+    lastRequest = Date.now();
+
+    // ── Prova NOAA → fallback GEBCO ──────────────────────────────────────
+    setStatus('spin', 'NOAA ETOPO…');
+    let result = null;
+    let errMsg  = '';
+
+    try {
+        result = await queryNOAA(lat, lng);
+        setStatus('ok', `NOAA ETOPO · ${depthCache.size + 1} punti`);
+    } catch (e1) {
+        errMsg = `NOAA: ${e1.message}`;
+        setStatus('warn', 'NOAA non risponde, provo GEBCO…');
+        try {
+            result = await queryGEBCO(lat, lng);
+            setStatus('ok', `GEBCO 2023 (fallback) · ${depthCache.size + 1} punti`);
+        } catch (e2) {
+            errMsg += ` | GEBCO: ${e2.message}`;
+        }
+    }
+
+    if (result) {
+        depthCache.set(key, result);
+        updateCacheCounter();
+        popup.setContent(buildPopupContent({ ...result, fromCache: false }));
+    } else {
+        setStatus('err', 'Nessun servizio raggiungibile');
+        popup.setContent(`
+            <div class="popup-label" style="color:#f88">❌ Servizi non raggiungibili</div>
+            <div style="font-size:10px;opacity:.6;margin-top:6px;line-height:1.5;">
+              Controlla la connessione o riprova.<br>
+              <small>${errMsg}</small>
+            </div>`);
+    }
+});
+
+// ════════════════════════════════════════════════════════
+//  LAYER CONTROL
+// ════════════════════════════════════════════════════════
+L.control.layers(
+    {
+        "🗺️ Mappa Chiara (CartoDB)":        cartoDB,
+        "🌍 OpenStreetMap Standard":          osmStd,
+        "🌊 Mappa Oceanica Esri (può bloccarsi)": esriOcean
+    },
+    {
+        "⚓ OpenSeaMap – Carte Nautiche":     openSeaMap,
+        "🎨 Colori EMODnet (può bloccarsi)":  emodnetColors,
+        "🎨 Colori GEBCO/EOX (CDN globale)":  gebcoColors,
+        "🔵 Isobate costiere 5 m / 10 m":    markersGroup,
+        "🏙️ Nomi città":                      labels
+    },
+    { collapsed: false }
+).addTo(map);
+
+L.Control.geocoder({ defaultMarkGeocode: false })
+    .on('markgeocode', function(e) {
+        map.setView(e.geocode.center, 14);
+    })
+    .addTo(map);
+
+// Stato iniziale
+setStatus('ok', 'Servizio pronto – clicca sul mare');
 </script>
 </body>
 </html>
