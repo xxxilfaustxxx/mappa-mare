@@ -3,43 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Batimetria Adriatico</title>
+    <title>Batimetria Adriatico - Completa</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
-        body { margin: 0; padding: 0; background: #e0e0e0; font-family: sans-serif; }
+        body { margin: 0; padding: 0; background: #fff; font-family: sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* Pannello Informazioni in alto a sinistra */
+        /* Pannello Info */
         .info-panel {
             position: absolute; top: 10px; left: 10px;
-            background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 6px;
-            z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            border-left: 5px solid #0055aa;
+            background: rgba(255,255,255,0.95); padding: 12px 16px; border-radius: 8px;
+            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border-left: 5px solid #006994;
         }
-        .info-panel h3 { margin: 0 0 5px 0; font-size: 15px; color: #003366; }
-        .info-panel p { margin: 0; font-size: 11px; color: #555; }
+        .info-panel h3 { margin: 0 0 5px 0; font-size: 16px; color: #003d5b; }
+        .info-panel p { margin: 0; font-size: 12px; color: #555; line-height: 1.4; }
+        .info-panel .alert { color: #d00; font-weight: bold; font-size: 11px; margin-top: 6px; }
 
-        /* Stile per i numeri dei metri */
+        /* Bollini profondità marini */
         .depth-meter {
-            background: rgba(255, 255, 255, 0.9);
-            color: #003366;
-            border: 2px solid #0055aa;
-            border-radius: 10px;
-            padding: 1px 6px;
+            background: #ffffff;
+            color: #004080;
+            border: 2px solid #0077b6;
+            border-radius: 12px;
+            padding: 2px 7px;
             font-size: 11px;
-            font-weight: bold;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-            text-align: center;
+            font-weight: 800;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
             white-space: nowrap;
         }
 
-        /* Assicura che il menu a destra sia ben visibile */
+        /* Stile Menu a destra */
         .leaflet-control-layers {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3) !important;
-            border-radius: 6px !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
         }
     </style>
 </head>
@@ -48,96 +48,88 @@
 <div id="map"></div>
 
 <div class="info-panel">
-    <h3>Fondali Adriatico</h3>
-    <p>Usa il menu in alto a destra per attivare i colori del mare e i numeri dei metri.</p>
+    <h3>Fondali e Costa</h3>
+    <p>Tutti i livelli sono attivi. Se il mare è grigio/piatto, il server europeo è lento.</p>
+    <p class="alert">Soluzione: Nel menu a destra, togli la spunta a "EMODnet" e mettila a "GEBCO (Alternativa)".</p>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <script>
-    // Inizializza Mappa
     const map = L.map('map', { maxZoom: 18, minZoom: 7 }).setView([44.40, 12.50], 10);
 
-    // --- 1. LAYER BASE (Mappa Stradale Chiara) ---
+    // 1. BASE CHIARA STRADALE (Sotto tutto)
     const baseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OSM &copy; CARTO'
+        attribution: '© OSM © CARTO'
     }).addTo(map);
 
-    // --- 2. LAYER MARE BATIMETRICO (Colori) ---
-    const bathyLayer = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
+    // --- OPZIONE MARE A: EMODNET (Europeo, spesso lento/bloccato) ---
+    const bathyEmodnet = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         attribution: 'EMODnet',
         maxZoom: 18,
-        opacity: 0.9 // Lascia trasparire le strade sulla terraferma
-    });
+        opacity: 0.85 
+    }).addTo(map); // Attivo di default
 
-    // --- 3. LAYER ISOBATE (Linee di profondità) ---
+    // --- OPZIONE MARE B: GEBCO (Americano, velocissimo e stabile) ---
+    const bathyGebco = L.tileLayer.wms('https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv', {
+        layers: 'GEBCO_LATEST',
+        format: 'image/png',
+        transparent: true,
+        version: '1.1.1',
+        opacity: 0.8
+    }); // Non attivo di default, ma pronto nel menu
+
+    // 3. LINEE ISOBATE (Attive di default)
     const contourLayer = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
         layers: 'emodnet:contours',
         format: 'image/png',
         transparent: true,
         version: '1.1.1',
         opacity: 0.9
-    });
+    }).addTo(map);
 
-    // --- 4. ETICHETTE CITTA' ---
+    // 4. ETICHETTE CITTA' (Attive di default)
     const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
         pane: 'shadowPane'
     }).addTo(map);
 
-    // --- 5. ETICHETTE PROFONDITA' IN METRI (Gruppo Unico) ---
+    // 5. METRI DI PROFONDITA' (Attivi di default)
     const depthData = [
-        // Litorale Veneto
         {lat: 45.50, lng: 12.55, val: "4 m"}, {lat: 45.40, lng: 12.60, val: "8 m"}, 
         {lat: 45.30, lng: 12.65, val: "10 m"}, {lat: 45.20, lng: 12.70, val: "15 m"}, 
         {lat: 45.10, lng: 12.75, val: "20 m"},
-        // Delta del Po
         {lat: 45.00, lng: 12.50, val: "2 m"}, {lat: 44.95, lng: 12.60, val: "5 m"}, 
         {lat: 44.90, lng: 12.80, val: "10 m"},
-        // Ravenna
         {lat: 44.50, lng: 12.30, val: "3 m"}, {lat: 44.45, lng: 12.40, val: "5 m"}, 
         {lat: 44.40, lng: 12.55, val: "10 m"}, {lat: 44.35, lng: 12.70, val: "15 m"}, 
         {lat: 44.30, lng: 12.85, val: "20 m"},
-        // Rimini
         {lat: 44.10, lng: 12.50, val: "5 m"}, {lat: 44.05, lng: 12.65, val: "10 m"}, 
         {lat: 44.00, lng: 12.80, val: "20 m"}, {lat: 43.95, lng: 12.95, val: "30 m"},
-        // Pesaro / Ancona
         {lat: 43.70, lng: 13.00, val: "10 m"}, {lat: 43.65, lng: 13.15, val: "20 m"}, 
         {lat: 43.62, lng: 13.50, val: "15 m"}, {lat: 43.58, lng: 13.65, val: "30 m"}
     ];
 
-    // Creo il gruppo vuoto
     const metersGroup = L.layerGroup();
-
-    // Aggiungo i marker AL GRUPPO (non direttamente alla mappa)
     depthData.forEach(p => {
-        const marker = L.marker([p.lat, p.lng], {
-            icon: L.divIcon({ 
-                className: 'depth-meter', 
-                html: p.val, 
-                iconSize: [36, 18],
-                iconAnchor: [18, 9]
-            })
-        });
-        metersGroup.addLayer(marker);
+        metersGroup.addLayer(L.marker([p.lat, p.lng], {
+            icon: L.divIcon({ className: 'depth-meter', html: p.val, iconSize: [36, 18], iconAnchor: [18, 9] })
+        }));
     });
-
-    // Aggiungo il gruppo alla mappa
     metersGroup.addTo(map);
 
-    // --- 6. MENU A DESTRA (Layer Control) ---
-    // Metto i livelli opzionali qui. Verranno visualizzati con le spunte.
+    // 6. MENU A DESTRA (Gestione intelligente)
     const overlays = {
-        "🎨 Colori Batimetria (Fondali)": bathyLayer,
+        "🎨 Colori Mare (EMODnet - eu)": bathyEmodnet,
+        "🌍 Colori Mare (GEBCO - usa se l'altro non va)": bathyGebco,
         "📏 Linee Isobate": contourLayer,
-        " anchors️ Numeri Metri Profondità": metersGroup,
+        "🔵 Metri Profondità": metersGroup,
         "🏙️ Nomi Città": labelsLayer
     };
 
-    // Aggiungo il controllo con collapsed: false (aperto di default)
     L.control.layers(null, overlays, { collapsed: false }).addTo(map);
-
-    // Ricerca indirizzi
+    
+    // Ricerca
     L.Control.geocoder().addTo(map);
 
 </script>
