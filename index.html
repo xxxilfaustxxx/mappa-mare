@@ -76,12 +76,15 @@
         zoomControl: true
     }).setView([42.5, 15.5], 7);
 
-    // 2. Layer di base (Dark Matter per contrasto)
+    // 2. Forza il ricalcolo delle dimensioni se la mappa appare tagliata
+setTimeout(() => { map.invalidateSize(); }, 500);
+
+    // 3. Layer di base (Dark Matter per contrasto)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; CARTO'
     }).addTo(map);
 
-    // 3. Layer Batimetrico EMODnet (URL AGGIORNATO E SICURO)
+    // 4. Layer Batimetrico EMODnet (URL AGGIORNATO E SICURO)
     const bathyLayer = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
         layers: 'emodnet:mean',
         format: 'image/png',
@@ -92,7 +95,7 @@
         crs: L.CRS.EPSG4326 // Specifichiamo il sistema di coordinate
     }).addTo(map);
 
-    // 4. Layer Isolinee (Contorni - URL AGGIORNATO E SICURO)
+    // 5. Layer Isolinee (Contorni - URL AGGIORNATO E SICURO)
     const contoursLayer = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
         layers: 'emodnet:contours',
         format: 'image/png',
@@ -101,7 +104,7 @@
         crs: L.CRS.EPSG4326
     }).addTo(map);
 
-    // 5. BARRA DI RICERCA (Geocoder)
+    // 6. BARRA DI RICERCA (Geocoder)
     const geocoder = L.Control.geocoder({
         defaultMarkGeocode: false,
         placeholder: "Cerca luogo o costa...",
@@ -116,7 +119,7 @@
     })
     .addTo(map);
 
-    // 6. Funzione al click per misurare la profondità
+    // 7. Funzione al click per misurare la profondità
     map.on('click', function(e) {
         const sw = map.getBounds().getSouthWest();
         const ne = map.getBounds().getNorthEast();
@@ -152,7 +155,7 @@
             });
     });
 
-    // 7. Controllo dei livelli (Layer Switcher)
+    // 8. Controllo dei livelli (Layer Switcher)
     const overlays = {
         "Sfumatura Batimetrica": bathyLayer,
         "Isolinee (100m+)": contoursLayer
