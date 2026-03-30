@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico Mediterraneo - Full</title>
+    <title>Plotter Nautico Mediterraneo - Google Full</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -13,6 +13,7 @@
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
+        /* Legenda */
         .legend {
             position: absolute; bottom: 40px; right: 20px;
             background: white; padding: 12px; border-radius: 8px;
@@ -42,8 +43,10 @@
         }
         .tool-btn:hover { background: #f4f4f4; color: #0077b6; }
 
-        .sea-layer { filter: saturate(140%) contrast(110%); }
+        /* Effetti Grafici Mare */
+        .sea-layer { filter: saturate(150%) contrast(110%); }
 
+        /* Nomi città */
         .leaflet-pane.leaflet-marker-pane span {
             color: #000 !important; font-weight: 900 !important;
             text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
@@ -84,44 +87,62 @@
 <script>
     const map = L.map('map', { maxZoom: 19, minZoom: 4 }).setView([38.0, 15.0], 6);
 
-    // LAYERS
+    // --- TUTTI I LAYER GOOGLE MAPS ---
     const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
         maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     }).addTo(map);
 
     const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3']
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     });
 
+    const googleTerrain = L.tileLayer('http://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',{
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+    });
+
+    // --- LAYER MARE & NAUTICA ---
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         className: 'sea-layer', opacity: 0.8
     }).addTo(map);
 
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
-    L.control.layers({ "Google Maps": googleStreets, "Google Satellite": googleHybrid }, 
-                     { "Profondità": bathy, "Dati Nautici": seaMarks }, { collapsed: false }).addTo(map);
-
-    // RIGHELLO NAUTICO
-    const polylineMeasure = L.control.polylineMeasure({
-        position: 'topleft',
-        unit: 'nauticalmiles',
-        showBearings: true,
-        clearControlTitle: 'Cancella'
+    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+        pane: 'markerPane'
     }).addTo(map);
 
-    // PULSANTE CANCELLA ROTTE (LOGICA)
+    // --- MENU CONTROLLO ---
+    const baseMaps = { 
+        "Google Stradale": googleStreets, 
+        "Google Satellite": googleHybrid,
+        "Google Terreno": googleTerrain
+    };
+
+    const overlays = { 
+        "Profondità (Colore)": bathy, 
+        "Numeri & Fari": seaMarks,
+        "Nomi Località": labels
+    };
+
+    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+
+    // --- RIGHELLO NAUTICO ---
+    const polylineMeasure = L.control.polylineMeasure({
+        position: 'topleft', unit: 'nauticalmiles', showBearings: true, clearControlTitle: 'Cancella'
+    }).addTo(map);
+
+    // LOGICA PULSANTE CANCELLA ROTTE
     document.getElementById('clear-routes-btn').onclick = function() {
         polylineMeasure._clearAllMeasurements();
     };
 
-    // RICERCA E COORDINATE
-    L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
+    // --- RICERCA E COORDINATE ---
+    L.Control.geocoder({ placeholder: "Cerca porto o città..." }).addTo(map);
     map.on('mousemove', function(e) {
         document.getElementById('coords').innerHTML = `Lat: ${e.latlng.lat.toFixed(4)}, Lon: ${e.latlng.lng.toFixed(4)}`;
     });
 
-    // WAYPOINTS
+    // --- WAYPOINTS ---
     let waypointGroup = L.layerGroup().addTo(map);
     map.on('contextmenu', function(e) {
         const waypoint = L.marker(e.latlng, { draggable: true }).addTo(waypointGroup);
@@ -137,6 +158,7 @@
         if(confirm("Vuoi cancellare tutti i Waypoint?")) waypointGroup.clearLayers();
     }
 
+    // --- GPS ---
     function getLocation() {
         map.locate({setView: true, maxZoom: 15});
         map.on('locationfound', (e) => {
