@@ -3,49 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Batimetria Mediterraneo - GPS & Google</title>
+    <title>Plotter Nautico Mediterraneo</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
     
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* --- LEGENDA SCALA 10m --- */
         .legend {
             position: absolute; bottom: 30px; right: 20px;
             background: white; padding: 12px; border-radius: 8px;
             z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             font-size: 11px; border-top: 5px solid #00b4d8;
         }
-        .legend h4 { margin: 0 0 8px 0; font-size: 13px; color: #0077b6; text-align: center; }
-        .legend div { display: flex; align-items: center; margin-bottom: 2px; }
-        .legend i { width: 25px; height: 12px; margin-right: 8px; border: 0.5px solid #ccc; }
+        .legend i { width: 25px; height: 12px; display:inline-block; margin-right: 8px; border: 0.5px solid #ccc; }
 
-        /* --- PULSANTE GPS PERSONALIZZATO --- */
+        /* Pannello Coordinate in tempo reale */
+        .coords-display {
+            position: absolute; bottom: 10px; left: 10px;
+            background: rgba(0,0,0,0.7); color: white; padding: 5px 10px;
+            border-radius: 4px; font-family: monospace; font-size: 12px; z-index: 1001;
+        }
+
         .gps-button {
-            position: absolute; top: 100px; left: 10px;
+            position: absolute; top: 150px; left: 10px;
             z-index: 1000; background: white; width: 34px; height: 34px;
             border-radius: 4px; border: 2px solid rgba(0,0,0,0.2);
             cursor: pointer; display: flex; align-items: center; justify-content: center;
-            font-size: 20px; color: #333;
+            font-size: 20px;
         }
-        .gps-button:hover { background: #f4f4f4; color: #0077b6; }
 
         .sea-layer { filter: saturate(140%) contrast(110%); }
-
-        .leaflet-pane.leaflet-marker-pane span {
-            color: #000 !important; font-weight: 900 !important;
-            text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
-            font-size: 12px; text-transform: uppercase;
-        }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
-
+<div id="coords" class="coords-display">Lat: 0.0000, Lon: 0.0000</div>
 <div class="gps-button" onclick="getLocation()" title="La mia posizione">🎯</div>
 
 <div class="legend">
@@ -65,69 +62,72 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
 
 <script>
-    const map = L.map('map', { maxZoom: 20, minZoom: 4 }).setView([38.0, 15.0], 5);
+    const map = L.map('map', { maxZoom: 18, minZoom: 4 }).setView([38.0, 15.0], 6);
 
-    // --- BASE LAYERS ---
+    // --- LAYER GOOGLE & MARE ---
     const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
         maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     }).addTo(map);
 
     const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3']
     });
 
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-
-    // --- OVERLAYS ---
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         className: 'sea-layer', opacity: 0.8
     }).addTo(map);
 
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
-    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-        pane: 'markerPane'
-    }).addTo(map);
-
-    // --- CONTROLLO LIVELLI ---
     L.control.layers({
         "Google Maps": googleStreets,
-        "Google Satellite": googleHybrid,
-        "OpenStreetMap": osm
+        "Google Satellite": googleHybrid
     }, {
-        "Colori Mare (10m)": bathy,
-        "Numeri & Dati Nautici": seaMarks,
-        "Etichette Città": labels
+        "Colori Batimetrici": bathy,
+        "Dati Nautici": seaMarks
     }, { collapsed: false }).addTo(map);
 
-    // --- RICERCA ---
-    L.Control.geocoder({ placeholder: "Cerca città..." }).addTo(map);
+    // --- STRUMENTO RIGHELLO (Miglia Nautiche) ---
+    L.control.polylineMeasure({
+        position: 'topleft',
+        unit: 'nauticalmiles', // Impostato su Miglia Nautiche
+        showBearings: true,
+        clearControlTitle: 'Cancella misurazioni',
+        measureControlTitleOn: 'Attiva righello nautico',
+        measureControlTitleOff: 'Disattiva righello'
+    }).addTo(map);
+
+    // --- COORDINATE AL MOUSE ---
+    map.on('mousemove', function(e) {
+        document.getElementById('coords').innerHTML = 
+            `Lat: ${e.latlng.lat.toFixed(4)}, Lon: ${e.latlng.lng.toFixed(4)}`;
+    });
+
+    // --- GESTIONE WAYPOINTS (Click Destro) ---
+    map.on('contextmenu', function(e) {
+        const waypoint = L.marker(e.latlng, {draggable: true}).addTo(map);
+        const popupContent = `
+            <strong>WAYPOINT</strong><br>
+            Lat: ${e.latlng.lat.toFixed(5)}<br>
+            Lon: ${e.latlng.lng.toFixed(5)}<br>
+            <button onclick="map.removeLayer(waypoint)">Elimina</button>
+        `;
+        waypoint.bindPopup(popupContent).openPopup();
+    });
 
     // --- FUNZIONE GPS ---
-    let userMarker, userCircle;
-
     function getLocation() {
-        if (!navigator.geolocation) {
-            alert("Il tuo browser non supporta la geolocalizzazione");
-            return;
-        }
-
         map.locate({setView: true, maxZoom: 15});
-
         map.on('locationfound', function(e) {
-            if (userMarker) { map.removeLayer(userMarker); map.removeLayer(userCircle); }
-            
-            userCircle = L.circle(e.latlng, e.accuracy).addTo(map);
-            userMarker = L.marker(e.latlng).addTo(map)
-                .bindPopup("Ti trovi qui").openPopup();
-        });
-
-        map.on('locationerror', function() {
-            alert("Impossibile trovare la tua posizione. Verifica i permessi GPS.");
+            L.circle(e.latlng, e.accuracy).addTo(map);
+            L.marker(e.latlng).addTo(map).bindPopup("Sei qui").openPopup();
         });
     }
+
+    L.Control.geocoder({ placeholder: "Cerca porto o città..." }).addTo(map);
 </script>
 </body>
 </html>
