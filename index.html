@@ -3,30 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mappa Adriatico - Versione Ultra Stabile</title>
+    <title>Mappa Batimetrica Adriatico - Dati Reali</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        body { margin: 0; padding: 0; background: #f4f4f4; font-family: sans-serif; }
+        body { margin: 0; padding: 0; background: #f0f0f0; font-family: sans-serif; }
         #map { width: 100%; height: 100vh; }
         
         .info-panel {
             position: absolute; bottom: 30px; left: 20px;
-            background: white; padding: 15px; border-radius: 10px;
-            z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            max-width: 280px; border-top: 5px solid #005f73;
+            background: white; padding: 12px; border-radius: 8px;
+            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            max-width: 250px; border-left: 5px solid #0055ff;
         }
 
-        /* FILTRO ALTO CONTRASTO: Rende i numeri della profondità neri e leggibili */
-        .depth-layer {
-            filter: contrast(150%) brightness(80%) saturate(0%);
-        }
-
-        /* NOMI CITTÀ: Neri e spessi per non confondersi con la costa */
+        /* Nomi città: neri, spessi e con bordo bianco per massima leggibilità */
         .leaflet-pane.leaflet-marker-pane span {
             color: #000 !important;
             font-weight: 900 !important;
-            text-shadow: 2px 2px 0px white, -2px -2px 0px white;
-            font-size: 14px;
+            text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff, 2px -2px 0px #fff, -2px 2px 0px #fff;
+            font-size: 13px;
+            text-transform: uppercase;
         }
     </style>
 </head>
@@ -34,43 +32,45 @@
 
 <div id="map"></div>
 <div class="info-panel">
-    <strong style="color: #005f73;">Profondità Reali (Metri)</strong><br>
-    <p style="margin: 5px 0; font-size: 12px;">Zoomma per vedere i numeri della profondità (es: 5, 10, 15) scritti sul mare.</p>
+    <strong>Batimetria & Numeri (m)</strong><br>
+    <p style="font-size: 11px; margin: 5px 0;">Zoomma sulla costa per vedere le cifre della profondità e le boe.</p>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+    // Inizializzazione centrata su Caorle/Bibione (dove avevi lo zoom prima)
     const map = L.map('map', { 
-        maxZoom: 16, 
-        minZoom: 7 
-    }).setView([45.4, 13.0], 9);
+        maxZoom: 18, 
+        minZoom: 8 
+    }).setView([45.58, 12.88], 12);
 
-    // 1. BASE: Mappa Grigia (Neutra)
-    const base = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-    // 2. LAYER COLORI MARE (EMODnet - Caricato come immagine semplice, molto veloce)
-    const seaColors = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        opacity: 0.6
+    // 1. BASE: OpenStreetMap (Sbiadito al 50% per non disturbare il mare)
+    const baseOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        opacity: 0.5
     }).addTo(map);
 
-    // 3. LAYER NUMERI E LINEE (Esri Ocean Reference)
-    // Usiamo la versione "Tile" che è istantanea e non va mai in timeout
-    const oceanData = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', {
-        className: 'depth-layer', // Applichiamo il filtro nero
-        opacity: 1,
-        attribution: 'Esri, GEBCO'
+    // 2. LAYER COLORI MARE (EMODnet - Il fondale colorato)
+    const bathyColors = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
+        opacity: 0.8,
+        attribution: 'EMODnet'
     }).addTo(map);
 
-    // 4. ETICHETTE CITTÀ (Forzate sopra i colori)
-    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+    // 3. LAYER DATI NAUTICI (OpenSeaMap - Numeri, Boe, Isobate nere)
+    // Questo layer "disegna" i metri direttamente sopra l'acqua
+    const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+        attribution: 'OpenSeaMap'
+    }).addTo(map);
+
+    // 4. ETICHETTE CITTÀ (Forzate sopra tutto)
+    const cityLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
         pane: 'markerPane'
     }).addTo(map);
 
-    // Controllo Layer
+    // Menu di controllo (In alto a destra)
     const overlays = {
-        "Colori Mare": seaColors,
-        "Numeri e Linee (Neri)": oceanData,
-        "Nomi Città": labels
+        "Colori Fondale": bathyColors,
+        "Numeri & Segnali (Nautici)": seaMarks,
+        "Nomi Città": cityLabels
     };
     L.control.layers(null, overlays, { collapsed: false }).addTo(map);
 
