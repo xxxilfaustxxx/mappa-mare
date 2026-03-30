@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mappa Batimetrica Adriatico - Con Numeri</title>
+    <title>Mappa Batimetrica Adriatico - Numeri Chiari</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -18,10 +18,10 @@
             border-radius: 10px; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             max-width: 240px; border-top: 5px solid #0044ff;
         }
-
-        .legend-scale { margin-top: 10px; display: flex; flex-direction: column; gap: 2px; }
-        .legend-item { display: flex; align-items: center; font-size: 11px; }
-        .color-box { width: 20px; height: 12px; margin-right: 8px; border: 1px solid #999; }
+        /* Forza la visibilità delle etichette delle città */
+        .leaflet-pane.leaflet-marker-pane img {
+            filter: brightness(0) saturate(100%); /* Rende i nomi delle città neri intensi */
+        }
     </style>
 </head>
 <body>
@@ -29,16 +29,9 @@
 <div id="map"></div>
 
 <div class="info-panel">
-    <h3 style="margin:0 0 5px 0; font-size: 16px;">Batimetria Numerica</h3>
-    <p style="font-size: 12px; margin: 0 0 10px 0; color: #444;">Zoomma vicino alla costa per vedere i metri (isobate).</p>
-    
-    <div class="legend-scale">
-        <div class="legend-item"><div class="color-box" style="background:#b7f0f7"></div> 0 - 20m (Costa)</div>
-        <div class="legend-item"><div class="color-box" style="background:#77d9e8"></div> 20 - 50m</div>
-        <div class="legend-item"><div class="color-box" style="background:#33a9ce"></div> 50 - 100m</div>
-        <div class="legend-item"><div class="color-box" style="background:#00719b"></div> 100 - 250m</div>
-        <div class="legend-item"><div class="color-box" style="background:#00456b"></div> 250 - 1000m</div>
-    </div>
+    <h3 style="margin:0 0 5px 0; font-size: 16px;">Batimetria con Numeri</h3>
+    <p style="font-size: 12px; margin: 0 0 10px 0; color: #444;">Zoomma sulla costa per vedere i metri scritti sulle linee (Isobate).</p>
+    <small>Se non vedi i numeri, prova ad attivare il layer "Numeri (GEBCO)" dal menu a destra.</small>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -48,32 +41,40 @@
     const map = L.map('map', {
         maxZoom: 18,
         minZoom: 6
-    }).setView([43.5, 14.5], 8); // Centrato più a nord per l'acqua bassa
+    }).setView([44.1, 12.6], 9); // Centrato sulla costa Romagnola (acqua bassa) per test immediato
 
     // 1. Layer Stradale (OSM)
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
 
-    // 2. Layer Scuro (Base)
+    // 2. Layer Scuro Base
     const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // 3. Sfumature Batimetriche (EMODnet)
+    // 3. Colori Mare (EMODnet)
     const bathyTiles = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         attribution: 'EMODnet',
         opacity: 0.8
     }).addTo(map);
 
-    // 4. ISOLINEE + NUMERI (Metri scritti)
-    // Usiamo il layer 'contours' che include le label numeriche integrate
-    const contours = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
+    // 4. NUOVO LAYER: Numeri e Contorni GEBCO (Più leggibili)
+    const gebcoContours = L.tileLayer.wms('https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv?', {
+        layers: 'gebco_latest_contours',
+        format: 'image/png',
+        transparent: true,
+        version: '1.3.0',
+        opacity: 0.9,
+        attribution: 'GEBCO'
+    }).addTo(map);
+
+    // 5. Contorni EMODnet (Linee bianche sottili di supporto)
+    const emodnetContours = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
         layers: 'emodnet:contours',
         format: 'image/png',
         transparent: true,
         version: '1.3.0',
-        opacity: 0.7,
-        styles: 'default' 
+        opacity: 0.5
     }).addTo(map);
 
-    // 5. Etichette Città (Nere per contrasto con l'acqua chiara)
+    // 6. Etichette Città (Nere e marcate)
     const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
         pane: 'markerPane'
     }).addTo(map);
@@ -82,15 +83,15 @@
     L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
 
     // Switcher Livelli
-    const baseLayers = { "Notte": dark, "Giorno": osm };
+    const baseLayers = { "Mappa Scura": dark, "Mappa Giorno": osm };
     const overlays = { 
         "Colori Mare": bathyTiles, 
-        "Numeri Profondità (m)": contours, 
-        "Città/Strade": labels 
+        "Numeri Profondità": gebcoContours,
+        "Linee Supporto": emodnetContours,
+        "Nomi Città": labels 
     };
     L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
 
-    // Forza refresh
     setTimeout(() => { map.invalidateSize(); }, 500);
 </script>
 </body>
