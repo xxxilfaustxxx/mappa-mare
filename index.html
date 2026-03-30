@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mediterraneo - Batimetria e Stradale</title>
+    <title>Mediterraneo - Batimetria, Stradale e Ricerca</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
@@ -30,10 +31,8 @@
             max-width: 220px; font-size: 12px; border-left: 5px solid #ffba08;
         }
 
-        /* FILTRO PER IL MARE: Aumenta il distacco tra i bassi fondali */
-        .sea-layer {
-            filter: saturate(140%) contrast(110%);
-        }
+        /* FILTRO PER IL MARE */
+        .sea-layer { filter: saturate(140%) contrast(110%); }
 
         /* Nomi città Ultra-Leggibili */
         .leaflet-pane.leaflet-marker-pane span {
@@ -43,6 +42,9 @@
             font-size: 12px;
             text-transform: uppercase;
         }
+        
+        /* Stile personalizzato barra ricerca */
+        .leaflet-control-geocoder { border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -66,26 +68,27 @@
 
 <div class="info-panel">
     <strong>Mediterraneo</strong><br>
-    <small>Scala 10m + Stradale</small>
+    <small>Ricerca + Scala 10m + Stradale</small>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
 <script>
-    // Vista centrata sul Mediterraneo
     const map = L.map('map', { 
         maxZoom: 18, 
         minZoom: 4 
     }).setView([38.0, 15.0], 5);
 
-    // 1. LAYER STRADALE (OpenStreetMap)
+    // 1. LAYER STRADALE
     const baseRoads = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // 2. LAYER GRIGIO CHIARO (Alternativo)
+    // 2. LAYER GRIGIO CHIARO
     const baseLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
 
-    // 3. LAYER MARE (EMODnet con filtro saturazione)
+    // 3. LAYER MARE (EMODnet)
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         className: 'sea-layer',
         opacity: 0.85
@@ -94,24 +97,27 @@
     // 4. LAYER NUMERI E ISOBATE (OpenSeaMap)
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
-    // 5. ETICHETTE NOMI CITTA'
+    // 5. ETICHETTE
     const cityLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
         pane: 'markerPane'
     }).addTo(map);
 
     // CONTROLLO LIVELLI
-    const baseMaps = {
+    L.control.layers({
         "Mappa Stradale": baseRoads,
         "Sfondo Grigio": baseLight
-    };
-
-    const overlays = {
+    }, {
         "Colori Mare (10m)": bathy,
         "Numeri & Isobate": seaMarks,
         "Nomi Città": cityLabels
-    };
+    }, { collapsed: false }).addTo(map);
 
-    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+    // --- AGGIUNTA BARRA DI RICERCA ---
+    L.Control.geocoder({
+        defaultMarkGeocode: true,
+        placeholder: "Cerca città...",
+        errorMessage: "Località non trovata."
+    }).addTo(map);
 
 </script>
 </body>
