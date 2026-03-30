@@ -3,86 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mappa Batimetrica Adriatico - Definitiva</title>
+    <title>Mappa Batimetrica Professionale Adriatico</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
         body { margin: 0; padding: 0; background: #001529; }
-        #map { width: 100%; height: 100vh; }
+        #map { width: 100%; height: 100vh; cursor: crosshair; }
+        
+        /* Pannello Info Leggibile */
         .info-panel {
             position: absolute; bottom: 20px; left: 20px;
-            background: rgba(255, 255, 255, 0.9); padding: 12px;
+            background: rgba(255, 255, 255, 0.95); padding: 15px;
             border-radius: 8px; z-index: 1000; font-family: sans-serif;
             box-shadow: 0 4px 15px rgba(0,0,0,0.4); font-size: 13px;
-            border-left: 4px solid #0044ff;
+            border-left: 5px solid #0044ff; line-height: 1.5;
         }
+
+        /* Stile Popup Profondità */
+        .depth-popup { font-weight: bold; font-size: 1.1em; text-align: center; }
+        .depth-value { color: #0056b3; font-size: 1.2em; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div class="info-panel">
-    <strong>Batimetria Adriatico (EMODnet)</strong><br>
-    Sfumature di profondità ad alta risoluzione.<br>
-    <small>Usa il selettore in alto a dx per le strade.</small>
+    <strong style="font-size: 15px;">Analisi Fondale Adriatico</strong><br>
+    📍 <strong>Clicca sul mare</strong> per la profondità.<br>
+    🔍 <strong>Cerca città</strong> in alto a destra.<br>
+    <small style="color: #666;">Dati: EMODnet Bathymetry 2026</small>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <script>
-    // Inizializzazione mappa
     const map = L.map('map', {
-        maxZoom: 18,
-        minZoom: 5
+        maxZoom: 16,
+        minZoom: 6
     }).setView([42.5, 15.5], 7);
 
-    // 1. LAYER BASE STRADALE (Sotto, opzionale)
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
-    });
-
-    // 2. LAYER BASE SCURO (Ottimo per contrasto)
-    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // 1. LAYER BASE SCURO (Sotto le sfumature del mare)
+    const darkBase = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; CARTO'
     }).addTo(map);
 
-    // 3. LAYER BATIMETRICO EMODNET (SERVER ALTERNATIVO - PIÙ STABILE)
-    // Questo server usa i "Tasselli" (Tiles) invece del protocollo WMS, evitando il grigio
-    const emodnetTiles = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        attribution: 'EMODnet Bathymetry',
-        opacity: 0.8,
-        maxZoom: 15
+    // 2. SFUMATURE BATIMETRICHE (EMODnet Tiles - Stabile)
+    const bathyTiles = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
+        attribution: 'EMODnet',
+        opacity: 0.85
     }).addTo(map);
 
-    // 4. LAYER CONTORNI (ISOLINEE)
-    const emodnetContours = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
+    // 3. ISOLINEE (Contorni bianchi)
+    const contours = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
         layers: 'emodnet:contours',
         format: 'image/png',
         transparent: true,
         version: '1.3.0',
-        opacity: 0.6
+        opacity: 0.5
     }).addTo(map);
 
-    // Barra di ricerca
-    L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
+    // 4. ETICHETTE CITTÀ (Layer scuro e leggibile sovrapposto)
+    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+        pane: 'shadowPane', // Le mette sopra i colori del mare
+        attribution: '&copy; CARTO'
+    }).addTo(map);
 
-    // Controllo livelli
-    const baseLayers = {
-        "Sfondo Scuro": dark,
-        "Mappa Stradale": osm
-    };
+    // BARRA DI RICERCA
+    L.Control.geocoder({ defaultMarkGeocode: true, position: 'topright' }).addTo(map);
 
+    // FUNZIONE INDICATORE DI PROFONDITÀ (AL CLICK)
+    map.on('click', function(e) {
+        const b = map.getBounds();
+        const size = map.getSize();
+        
+        // Costruzione URL GetFeatureInfo specifica per EMODnet
+        const url = `https://tiles.emodnet-bathymetry.eu/wms?` +
+                    `SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&` +
+                    `LAYERS=emodnet:mean&QUERY_LAYERS=emodnet:mean&` +
+                    `BBOX=${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}&` +
+                    `FEATURE_COUNT=1&HEIGHT=${size.y}&WIDTH=${size.x}&` +
+                    `INFO_FORMAT=application/json&CRS=EPSG:4326&` +
+                    `I=${Math.floor(map.latLngToContainerPoint(e.latlng).x)}&` +
+                    `J=${Math.floor(map.latLngToContainerPoint(e.latlng).y)}`;
+
+        const popup = L.popup()
+            .setLatLng(e.latlng)
+            .setContent("Misurazione in corso...")
+            .openOn(map);
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if(data.features && data.features.length > 0) {
+                    // Valore profondità (solitamente negativo nel DTM)
+                    const val = data.features[0].properties.value;
+                    const depth = Math.abs(parseFloat(val)).toFixed(1);
+                    popup.setContent(`<div class="depth-popup">Profondità:<br><span class="depth-value">${depth} m</span></div>`);
+                } else {
+                    popup.setContent("Dato non disponibile sulla terraferma.");
+                }
+            })
+            .catch(() => {
+                popup.setContent("Errore server (CORS/Timeout).");
+            });
+    });
+
+    // CONTROLLO LIVELLI
     const overlays = {
-        "Batimetria (Sfumature)": emodnetTiles,
-        "Isolinee (Linee)": emodnetContours
+        "Sfumatura Batimetrica": bathyTiles,
+        "Isolinee Profondità": contours,
+        "Nomi Città": labels
     };
+    L.control.layers(null, overlays, { collapsed: false }).addTo(map);
 
-    L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
-
-    // Fix per caricamento
     setTimeout(() => { map.invalidateSize(); }, 500);
 </script>
 </body>
