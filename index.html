@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico Mediterraneo - GPS & Google</title>
+    <title>Plotter Nautico Mediterraneo - Full</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -13,7 +13,6 @@
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* Legenda Batimetrica */
         .legend {
             position: absolute; bottom: 40px; right: 20px;
             background: white; padding: 12px; border-radius: 8px;
@@ -24,17 +23,16 @@
         .legend div { display: flex; align-items: center; margin-bottom: 2px; }
         .legend i { width: 25px; height: 12px; margin-right: 8px; border: 0.5px solid #ccc; }
 
-        /* Display Coordinate Live */
         .coords-display {
             position: absolute; bottom: 10px; left: 10px;
             background: rgba(0,0,0,0.7); color: white; padding: 5px 10px;
             border-radius: 4px; font-family: monospace; font-size: 12px; z-index: 1001;
         }
 
-        /* Pulsante GPS e Cancella Waypoint */
+        /* Pannello Strumenti Sinistro */
         .side-tools {
-            position: absolute; top: 180px; left: 10px;
-            z-index: 1000; display: flex; flex-direction: column; gap: 10px;
+            position: absolute; top: 150px; left: 10px;
+            z-index: 1000; display: flex; flex-direction: column; gap: 8px;
         }
         .tool-btn {
             background: white; width: 34px; height: 34px;
@@ -44,10 +42,8 @@
         }
         .tool-btn:hover { background: #f4f4f4; color: #0077b6; }
 
-        /* Filtro Mare per contrasto */
         .sea-layer { filter: saturate(140%) contrast(110%); }
 
-        /* Nomi città leggibili */
         .leaflet-pane.leaflet-marker-pane span {
             color: #000 !important; font-weight: 900 !important;
             text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
@@ -62,7 +58,8 @@
 
 <div class="side-tools">
     <div class="tool-btn" onclick="getLocation()" title="La mia posizione">🎯</div>
-    <div class="tool-btn" onclick="clearAllWaypoints()" title="Cancella tutti i Waypoint" style="color:red;">🗑️</div>
+    <div class="tool-btn" onclick="clearAllWaypoints()" title="Cancella Waypoints" style="color:red;">📍🗑️</div>
+    <div class="tool-btn" id="clear-routes-btn" title="Cancella Rotte" style="color:#0077b6;">📏🗑️</div>
 </div>
 
 <div class="legend">
@@ -87,101 +84,66 @@
 <script>
     const map = L.map('map', { maxZoom: 19, minZoom: 4 }).setView([38.0, 15.0], 6);
 
-    // --- 1. BASE LAYERS (Google & OSM) ---
+    // LAYERS
     const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
         maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     }).addTo(map);
 
     const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3']
     });
 
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-
-    // --- 2. OVERLAYS (Mare e Dati Nautici) ---
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         className: 'sea-layer', opacity: 0.8
     }).addTo(map);
 
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
-    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-        pane: 'markerPane'
-    }).addTo(map);
+    L.control.layers({ "Google Maps": googleStreets, "Google Satellite": googleHybrid }, 
+                     { "Profondità": bathy, "Dati Nautici": seaMarks }, { collapsed: false }).addTo(map);
 
-    // Controllo Livelli
-    L.control.layers({
-        "Google Maps": googleStreets,
-        "Google Satellite": googleHybrid,
-        "OpenStreetMap": osm
-    }, {
-        "Profondità (Colore)": bathy,
-        "Numeri Nautici": seaMarks,
-        "Nomi Città": labels
-    }, { collapsed: false }).addTo(map);
-
-    // --- 3. STRUMENTO RIGHELLO NAUTICO (NM) ---
-    L.control.polylineMeasure({
+    // RIGHELLO NAUTICO
+    const polylineMeasure = L.control.polylineMeasure({
         position: 'topleft',
-        unit: 'nauticalmiles', 
+        unit: 'nauticalmiles',
         showBearings: true,
-        clearControlTitle: 'Cancella rotte'
+        clearControlTitle: 'Cancella'
     }).addTo(map);
 
-    // --- 4. RICERCA E COORDINATE LIVE ---
-    L.Control.geocoder({ placeholder: "Cerca porto o città..." }).addTo(map);
+    // PULSANTE CANCELLA ROTTE (LOGICA)
+    document.getElementById('clear-routes-btn').onclick = function() {
+        polylineMeasure._clearAllMeasurements();
+    };
 
+    // RICERCA E COORDINATE
+    L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
     map.on('mousemove', function(e) {
-        document.getElementById('coords').innerHTML = 
-            `Lat: ${e.latlng.lat.toFixed(4)}, Lon: ${e.latlng.lng.toFixed(4)}`;
+        document.getElementById('coords').innerHTML = `Lat: ${e.latlng.lat.toFixed(4)}, Lon: ${e.latlng.lng.toFixed(4)}`;
     });
 
-    // --- 5. GESTIONE WAYPOINTS ---
+    // WAYPOINTS
     let waypointGroup = L.layerGroup().addTo(map);
-
     map.on('contextmenu', function(e) {
-        const waypoint = L.marker(e.latlng, {
-            draggable: true,
-            title: "Punto Nave"
-        }).addTo(waypointGroup);
-
-        const updatePopup = (latlng) => {
-            waypoint.bindPopup(`
-                <b>Punto Nave</b><br>
-                Lat: ${latlng.lat.toFixed(5)}<br>
-                Lon: ${latlng.lng.toFixed(5)}<br>
-                <small style="color:red;">Doppio Click per eliminare</small>
-            `).openPopup();
+        const waypoint = L.marker(e.latlng, { draggable: true }).addTo(waypointGroup);
+        const update = (ll) => {
+            waypoint.bindPopup(`<b>Punto Nave</b><br>Lat: ${ll.lat.toFixed(5)}<br>Lon: ${ll.lng.toFixed(5)}<br><small style="color:red;">Doppio Click per eliminare</small>`).openPopup();
         };
-
-        updatePopup(e.latlng);
-
-        // Eliminazione con doppio click
-        waypoint.on('dblclick', function() {
-            waypointGroup.removeLayer(waypoint);
-        });
-
-        // Aggiornamento coordinate dopo trascinamento
-        waypoint.on('dragend', function(e) {
-            updatePopup(e.target.getLatLng());
-        });
+        update(e.latlng);
+        waypoint.on('dblclick', () => waypointGroup.removeLayer(waypoint));
+        waypoint.on('dragend', (ev) => update(ev.target.getLatLng()));
     });
 
     function clearAllWaypoints() {
-        if(confirm("Vuoi cancellare tutti i Waypoint sulla mappa?")) {
-            waypointGroup.clearLayers();
-        }
+        if(confirm("Vuoi cancellare tutti i Waypoint?")) waypointGroup.clearLayers();
     }
 
-    // --- 6. GPS ---
     function getLocation() {
         map.locate({setView: true, maxZoom: 15});
-        map.on('locationfound', function(e) {
+        map.on('locationfound', (e) => {
             L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1}).addTo(map);
             L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
         });
     }
-
 </script>
 </body>
 </html>
