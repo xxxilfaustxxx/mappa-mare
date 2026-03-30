@@ -3,40 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mappa Batimetrica Mediterraneo</title>
+    <title>Batimetria Mediterraneo - Scala 10m</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* --- LEGENDA COLORI --- */
+        /* --- LEGENDA DETTAGLIATA 10 METRI --- */
         .legend {
             position: absolute; bottom: 30px; right: 20px;
-            background: white; padding: 15px; border-radius: 8px;
+            background: white; padding: 12px; border-radius: 8px;
             z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            font-size: 12px; line-height: 18px; color: #333;
-            border: 1px solid #ccc;
+            font-size: 11px; color: #333; line-height: 14px;
+            border-top: 5px solid #00b4d8;
         }
-        .legend h4 { margin: 0 0 10px 0; font-size: 14px; color: #0055ff; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .legend div { display: flex; align-items: center; margin-bottom: 3px; }
-        .legend i { width: 18px; height: 18px; margin-right: 8px; opacity: 0.8; border-radius: 2px; }
+        .legend h4 { margin: 0 0 8px 0; font-size: 13px; color: #0077b6; text-align: center; }
+        .legend div { display: flex; align-items: center; margin-bottom: 2px; }
+        .legend i { width: 25px; height: 12px; margin-right: 8px; border: 0.5px solid #ccc; }
 
         .info-panel {
             position: absolute; bottom: 30px; left: 20px;
-            background: white; padding: 12px; border-radius: 8px;
-            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            max-width: 220px; border-left: 5px solid #0055ff;
+            background: rgba(255,255,255,0.9); padding: 10px; border-radius: 8px;
+            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            max-width: 200px; font-size: 12px;
         }
 
-        /* Nomi città leggibili */
+        /* FILTRO PER IL MARE: Aumenta il distacco tra i bassi fondali */
+        .sea-layer {
+            filter: saturate(140%) contrast(110%);
+        }
+
+        /* Nomi città Ultra-Leggibili */
         .leaflet-pane.leaflet-marker-pane span {
             color: #000 !important;
-            font-weight: 800 !important;
-            text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
+            font-weight: 900 !important;
+            text-shadow: 1.5px 1.5px 0px #fff, -1.5px -1.5px 0px #fff;
             font-size: 12px;
-            text-transform: uppercase;
         }
     </style>
 </head>
@@ -45,40 +49,42 @@
 <div id="map"></div>
 
 <div class="legend">
-    <h4>Profondità (Metri)</h4>
-    <div><i style="background: #D0EFFF"></i> 0 - 50 m</div>
-    <div><i style="background: #A0D6FF"></i> 50 - 100 m</div>
-    <div><i style="background: #60B2FF"></i> 100 - 250 m</div>
-    <div><i style="background: #007FFF"></i> 250 - 500 m</div>
-    <div><i style="background: #0059B3"></i> 500 - 1000 m</div>
-    <div><i style="background: #003D7A"></i> 1000 - 2500 m</div>
-    <div><i style="background: #001F3D"></i> > 2500 m</div>
+    <h4>Profondità (m)</h4>
+    <div><i style="background: #e0f2f1"></i> 0 - 10 m</div>
+    <div><i style="background: #b2ebf2"></i> 10 - 20 m</div>
+    <div><i style="background: #80deea"></i> 20 - 30 m</div>
+    <div><i style="background: #4dd0e1"></i> 30 - 40 m</div>
+    <div><i style="background: #26c6da"></i> 40 - 50 m</div>
+    <div><i style="background: #00bcd4"></i> 50 - 60 m</div>
+    <div><i style="background: #00acc1"></i> 60 - 70 m</div>
+    <div><i style="background: #0097a7"></i> 70 - 80 m</div>
+    <div><i style="background: #00838f"></i> 80 - 90 m</div>
+    <div><i style="background: #006064"></i> 90 - 100 m</div>
+    <div><i style="background: #01579b"></i> > 100 m</div>
 </div>
 
 <div class="info-panel">
-    <strong>Batimetria Mediterraneo</strong><br>
-    <small>I numeri neri indicano le profondità locali (metri).</small>
+    <strong>Mediterraneo Alta Risoluzione</strong><br>
+    Sfondo ottimizzato per distinguere i gradini di 10m in costa.
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Inizializzazione: Vista su tutto il Mediterraneo
     const map = L.map('map', { 
         maxZoom: 18, 
-        minZoom: 4 
-    }).setView([37.0, 18.0], 5); // Coordinate centrali del Mediterraneo
+        minZoom: 5 
+    }).setView([38.0, 15.0], 5); // Vista Mediterraneo Centrale
 
-    // 1. BASE: Mappa Grigio-Chiaro
-    const base = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        opacity: 0.6
+    // 1. BASE: Mappa Grigia Soft
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // 2. LAYER MARE (EMODnet con filtro saturazione)
+    const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
+        className: 'sea-layer',
+        opacity: 0.85
     }).addTo(map);
 
-    // 2. LAYER COLORI FONDALE (EMODnet)
-    const bathyColors = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        opacity: 0.8
-    }).addTo(map);
-
-    // 3. LAYER DATI NAUTICI E NUMERI (OpenSeaMap)
+    // 3. LAYER NUMERI E ISOBATE (OpenSeaMap)
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
     // 4. ETICHETTE CITTÀ
@@ -86,11 +92,10 @@
         pane: 'markerPane'
     }).addTo(map);
 
-    // Menu Controllo
     L.control.layers(null, {
-        "Colori Mare": bathyColors,
+        "Colori Mare (Filtro 10m)": bathy,
         "Numeri & Isobate": seaMarks,
-        "Etichette": cityLabels
+        "Città": cityLabels
     }, { collapsed: false }).addTo(map);
 
 </script>
