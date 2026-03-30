@@ -3,27 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mappa Batimetrica Adriatico - Dati Reali</title>
+    <title>Mappa Batimetrica Mediterraneo</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body { margin: 0; padding: 0; background: #f0f0f0; font-family: sans-serif; }
+        body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { width: 100%; height: 100vh; }
         
+        /* --- LEGENDA COLORI --- */
+        .legend {
+            position: absolute; bottom: 30px; right: 20px;
+            background: white; padding: 15px; border-radius: 8px;
+            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            font-size: 12px; line-height: 18px; color: #333;
+            border: 1px solid #ccc;
+        }
+        .legend h4 { margin: 0 0 10px 0; font-size: 14px; color: #0055ff; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .legend div { display: flex; align-items: center; margin-bottom: 3px; }
+        .legend i { width: 18px; height: 18px; margin-right: 8px; opacity: 0.8; border-radius: 2px; }
+
         .info-panel {
             position: absolute; bottom: 30px; left: 20px;
             background: white; padding: 12px; border-radius: 8px;
             z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            max-width: 250px; border-left: 5px solid #0055ff;
+            max-width: 220px; border-left: 5px solid #0055ff;
         }
 
-        /* Nomi città: neri, spessi e con bordo bianco per massima leggibilità */
+        /* Nomi città leggibili */
         .leaflet-pane.leaflet-marker-pane span {
             color: #000 !important;
-            font-weight: 900 !important;
-            text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff, 2px -2px 0px #fff, -2px 2px 0px #fff;
-            font-size: 13px;
+            font-weight: 800 !important;
+            text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
+            font-size: 12px;
             text-transform: uppercase;
         }
     </style>
@@ -31,48 +43,55 @@
 <body>
 
 <div id="map"></div>
+
+<div class="legend">
+    <h4>Profondità (Metri)</h4>
+    <div><i style="background: #D0EFFF"></i> 0 - 50 m</div>
+    <div><i style="background: #A0D6FF"></i> 50 - 100 m</div>
+    <div><i style="background: #60B2FF"></i> 100 - 250 m</div>
+    <div><i style="background: #007FFF"></i> 250 - 500 m</div>
+    <div><i style="background: #0059B3"></i> 500 - 1000 m</div>
+    <div><i style="background: #003D7A"></i> 1000 - 2500 m</div>
+    <div><i style="background: #001F3D"></i> > 2500 m</div>
+</div>
+
 <div class="info-panel">
-    <strong>Batimetria & Numeri (m)</strong><br>
-    <p style="font-size: 11px; margin: 5px 0;">Zoomma sulla costa per vedere le cifre della profondità e le boe.</p>
+    <strong>Batimetria Mediterraneo</strong><br>
+    <small>I numeri neri indicano le profondità locali (metri).</small>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Inizializzazione centrata su Caorle/Bibione (dove avevi lo zoom prima)
+    // Inizializzazione: Vista su tutto il Mediterraneo
     const map = L.map('map', { 
         maxZoom: 18, 
-        minZoom: 8 
-    }).setView([45.58, 12.88], 12);
+        minZoom: 4 
+    }).setView([37.0, 18.0], 5); // Coordinate centrali del Mediterraneo
 
-    // 1. BASE: OpenStreetMap (Sbiadito al 50% per non disturbare il mare)
-    const baseOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        opacity: 0.5
+    // 1. BASE: Mappa Grigio-Chiaro
+    const base = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        opacity: 0.6
     }).addTo(map);
 
-    // 2. LAYER COLORI MARE (EMODnet - Il fondale colorato)
+    // 2. LAYER COLORI FONDALE (EMODnet)
     const bathyColors = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        opacity: 0.8,
-        attribution: 'EMODnet'
+        opacity: 0.8
     }).addTo(map);
 
-    // 3. LAYER DATI NAUTICI (OpenSeaMap - Numeri, Boe, Isobate nere)
-    // Questo layer "disegna" i metri direttamente sopra l'acqua
-    const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-        attribution: 'OpenSeaMap'
-    }).addTo(map);
+    // 3. LAYER DATI NAUTICI E NUMERI (OpenSeaMap)
+    const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
-    // 4. ETICHETTE CITTÀ (Forzate sopra tutto)
+    // 4. ETICHETTE CITTÀ
     const cityLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
         pane: 'markerPane'
     }).addTo(map);
 
-    // Menu di controllo (In alto a destra)
-    const overlays = {
-        "Colori Fondale": bathyColors,
-        "Numeri & Segnali (Nautici)": seaMarks,
-        "Nomi Città": cityLabels
-    };
-    L.control.layers(null, overlays, { collapsed: false }).addTo(map);
+    // Menu Controllo
+    L.control.layers(null, {
+        "Colori Mare": bathyColors,
+        "Numeri & Isobate": seaMarks,
+        "Etichette": cityLabels
+    }, { collapsed: false }).addTo(map);
 
 </script>
 </body>
