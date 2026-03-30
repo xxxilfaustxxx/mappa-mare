@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mediterraneo - Batimetria + Google Maps</title>
+    <title>Batimetria Mediterraneo - GPS & Google</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -12,7 +12,7 @@
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* LEGENDA SCALA 10m */
+        /* --- LEGENDA SCALA 10m --- */
         .legend {
             position: absolute; bottom: 30px; right: 20px;
             background: white; padding: 12px; border-radius: 8px;
@@ -23,22 +23,30 @@
         .legend div { display: flex; align-items: center; margin-bottom: 2px; }
         .legend i { width: 25px; height: 12px; margin-right: 8px; border: 0.5px solid #ccc; }
 
-        /* Filtro Saturazione per far risaltare il mare sopra Google Maps */
-        .sea-layer { filter: saturate(150%) contrast(110%); }
+        /* --- PULSANTE GPS PERSONALIZZATO --- */
+        .gps-button {
+            position: absolute; top: 100px; left: 10px;
+            z-index: 1000; background: white; width: 34px; height: 34px;
+            border-radius: 4px; border: 2px solid rgba(0,0,0,0.2);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; color: #333;
+        }
+        .gps-button:hover { background: #f4f4f4; color: #0077b6; }
 
-        /* Etichette città */
+        .sea-layer { filter: saturate(140%) contrast(110%); }
+
         .leaflet-pane.leaflet-marker-pane span {
-            color: #000 !important;
-            font-weight: 900 !important;
+            color: #000 !important; font-weight: 900 !important;
             text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
-            font-size: 12px;
-            text-transform: uppercase;
+            font-size: 12px; text-transform: uppercase;
         }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
+
+<div class="gps-button" onclick="getLocation()" title="La mia posizione">🎯</div>
 
 <div class="legend">
     <h4>Profondità (m)</h4>
@@ -59,61 +67,67 @@
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <script>
-    const map = L.map('map', { 
-        maxZoom: 20, // Google supporta zoom più alti
-        minZoom: 4 
-    }).setView([38.0, 15.0], 5);
+    const map = L.map('map', { maxZoom: 20, minZoom: 4 }).setView([38.0, 15.0], 5);
 
-    // --- 1. LAYER GOOGLE MAPS ---
+    // --- BASE LAYERS ---
     const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
-        maxZoom: 20,
-        subdomains:['mt0','mt1','mt2','mt3'],
-        attribution: '© Google Maps'
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     }).addTo(map);
 
     const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}',{
-        maxZoom: 20,
-        subdomains:['mt0','mt1','mt2','mt3'],
-        attribution: '© Google Maps Satellite'
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     });
 
-    const osmRoads = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
 
-    // --- 2. LAYER MARE (EMODnet) ---
+    // --- OVERLAYS ---
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        className: 'sea-layer',
-        opacity: 0.75 // Leggermente più trasparente per vedere Google sotto
+        className: 'sea-layer', opacity: 0.8
     }).addTo(map);
 
-    // --- 3. LAYER DATI NAUTICI (OpenSeaMap) ---
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
-    // --- 4. ETICHETTE ---
-    const cityLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
         pane: 'markerPane'
     }).addTo(map);
 
     // --- CONTROLLO LIVELLI ---
-    const baseMaps = {
-        "Google Maps (Strade)": googleStreets,
-        "Google Maps (Satellite)": googleHybrid,
-        "OpenStreetMap": osmRoads
-    };
+    L.control.layers({
+        "Google Maps": googleStreets,
+        "Google Satellite": googleHybrid,
+        "OpenStreetMap": osm
+    }, {
+        "Colori Mare (10m)": bathy,
+        "Numeri & Dati Nautici": seaMarks,
+        "Etichette Città": labels
+    }, { collapsed: false }).addTo(map);
 
-    const overlays = {
-        "Colori Profondità (10m)": bathy,
-        "Numeri & Isobate": seaMarks,
-        "Nomi Città": cityLabels
-    };
+    // --- RICERCA ---
+    L.Control.geocoder({ placeholder: "Cerca città..." }).addTo(map);
 
-    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+    // --- FUNZIONE GPS ---
+    let userMarker, userCircle;
 
-    // --- BARRA DI RICERCA ---
-    L.Control.geocoder({
-        defaultMarkGeocode: true,
-        placeholder: "Cerca località...",
-    }).addTo(map);
+    function getLocation() {
+        if (!navigator.geolocation) {
+            alert("Il tuo browser non supporta la geolocalizzazione");
+            return;
+        }
 
+        map.locate({setView: true, maxZoom: 15});
+
+        map.on('locationfound', function(e) {
+            if (userMarker) { map.removeLayer(userMarker); map.removeLayer(userCircle); }
+            
+            userCircle = L.circle(e.latlng, e.accuracy).addTo(map);
+            userMarker = L.marker(e.latlng).addTo(map)
+                .bindPopup("Ti trovi qui").openPopup();
+        });
+
+        map.on('locationerror', function() {
+            alert("Impossibile trovare la tua posizione. Verifica i permessi GPS.");
+        });
+    }
 </script>
 </body>
 </html>
