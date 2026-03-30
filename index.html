@@ -24,10 +24,12 @@
         .legend div { display: flex; align-items: center; margin-bottom: 2px; }
         .legend i { width: 25px; height: 12px; margin-right: 8px; border: 0.5px solid #ccc; }
 
+        /* Display Coordinate Live */
         .coords-display {
             position: absolute; bottom: 10px; left: 10px;
-            background: rgba(0,0,0,0.7); color: white; padding: 5px 10px;
-            border-radius: 4px; font-family: monospace; font-size: 12px; z-index: 1001;
+            background: rgba(0,0,0,0.8); color: #00ff00; padding: 5px 12px;
+            border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; z-index: 1001;
+            border: 1px solid #333;
         }
 
         /* Pannello Strumenti Sinistro */
@@ -36,17 +38,17 @@
             z-index: 1000; display: flex; flex-direction: column; gap: 8px;
         }
         .tool-btn {
-            background: white; width: 34px; height: 34px;
+            background: white; width: 36px; height: 36px;
             border-radius: 4px; border: 2px solid rgba(0,0,0,0.2);
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             font-size: 18px; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .tool-btn:hover { background: #f4f4f4; color: #0077b6; }
 
-        /* Effetti Grafici Mare */
+        /* Filtro Mare */
         .sea-layer { filter: saturate(150%) contrast(110%); }
 
-        /* Nomi città */
+        /* Etichette città */
         .leaflet-pane.leaflet-marker-pane span {
             color: #000 !important; font-weight: 900 !important;
             text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff;
@@ -57,7 +59,7 @@
 <body>
 
 <div id="map"></div>
-<div id="coords" class="coords-display">Lat: 0.0000, Lon: 0.0000</div>
+<div id="coords" class="coords-display">Lat: 0.00000, Lon: 0.00000</div>
 
 <div class="side-tools">
     <div class="tool-btn" onclick="getLocation()" title="La mia posizione">🎯</div>
@@ -85,22 +87,19 @@
 <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
 
 <script>
-    const map = L.map('map', { maxZoom: 19, minZoom: 4 }).setView([38.0, 15.0], 6);
+    // Inizializzazione mappa
+    const map = L.map('map', { maxZoom: 19, minZoom: 4 }).setView([42.0, 14.0], 6);
 
-    // --- TUTTI I LAYER GOOGLE MAPS ---
+    // GOOGLE LAYERS
     const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
         maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
     }).addTo(map);
 
     const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3']
     });
 
-    const googleTerrain = L.tileLayer('http://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
-    });
-
-    // --- LAYER MARE & NAUTICA ---
+    // LAYER MARE
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
         className: 'sea-layer', opacity: 0.8
     }).addTo(map);
@@ -111,43 +110,39 @@
         pane: 'markerPane'
     }).addTo(map);
 
-    // --- MENU CONTROLLO ---
-    const baseMaps = { 
-        "Google Stradale": googleStreets, 
-        "Google Satellite": googleHybrid,
-        "Google Terreno": googleTerrain
-    };
+    L.control.layers({ "Google Stradale": googleStreets, "Google Satellite": googleHybrid }, 
+                     { "Profondità (Colore)": bathy, "Dati Nautici": seaMarks, "Nomi Località": labels }, { collapsed: false }).addTo(map);
 
-    const overlays = { 
-        "Profondità (Colore)": bathy, 
-        "Numeri & Fari": seaMarks,
-        "Nomi Località": labels
-    };
-
-    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
-
-    // --- RIGHELLO NAUTICO ---
+    // --- CONFIGURAZIONE RIGHELLO CORRETTA (Miglia Nautiche & Metri) ---
     const polylineMeasure = L.control.polylineMeasure({
-        position: 'topleft', unit: 'nauticalmiles', showBearings: true, clearControlTitle: 'Cancella'
+        position: 'topleft',
+        unit: 'nauticalmiles', // Unità primaria: Miglia Nautiche
+        showBearings: true,     // Mostra la prua (gradi)
+        bearingTextIn: 'In entrata',
+        bearingTextOut: 'In uscita',
+        tooltipTextDragandadd: 'Trascina e aggiungi',
+        tooltipTextResume: 'Riprendi linea',
+        tooltipTextAdd: 'Aggiungi punto',
+        clearControlTitle: 'Cancella misurazioni'
     }).addTo(map);
 
-    // LOGICA PULSANTE CANCELLA ROTTE
+    // Pulsante cancellazione rotte
     document.getElementById('clear-routes-btn').onclick = function() {
         polylineMeasure._clearAllMeasurements();
     };
 
-    // --- RICERCA E COORDINATE ---
-    L.Control.geocoder({ placeholder: "Cerca porto o città..." }).addTo(map);
+    // RICERCA E COORDINATE
+    L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
     map.on('mousemove', function(e) {
-        document.getElementById('coords').innerHTML = `Lat: ${e.latlng.lat.toFixed(4)}, Lon: ${e.latlng.lng.toFixed(4)}`;
+        document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
     });
 
-    // --- WAYPOINTS ---
+    // WAYPOINTS
     let waypointGroup = L.layerGroup().addTo(map);
     map.on('contextmenu', function(e) {
         const waypoint = L.marker(e.latlng, { draggable: true }).addTo(waypointGroup);
         const update = (ll) => {
-            waypoint.bindPopup(`<b>Punto Nave</b><br>Lat: ${ll.lat.toFixed(5)}<br>Lon: ${ll.lng.toFixed(5)}<br><small style="color:red;">Doppio Click per eliminare</small>`).openPopup();
+            waypoint.bindPopup(`<b>Punto Nave</b><br>LAT: ${ll.lat.toFixed(5)}<br>LON: ${ll.lng.toFixed(5)}<br><small style="color:red;">Doppio click per eliminare</small>`).openPopup();
         };
         update(e.latlng);
         waypoint.on('dblclick', () => waypointGroup.removeLayer(waypoint));
@@ -158,12 +153,11 @@
         if(confirm("Vuoi cancellare tutti i Waypoint?")) waypointGroup.clearLayers();
     }
 
-    // --- GPS ---
     function getLocation() {
         map.locate({setView: true, maxZoom: 15});
         map.on('locationfound', (e) => {
             L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1}).addTo(map);
-            L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
+            L.marker(e.latlng).addTo(map).bindPopup("Sei qui").openPopup();
         });
     }
 </script>
