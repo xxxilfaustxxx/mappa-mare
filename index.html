@@ -1,133 +1,32 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico Mediterraneo</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-    <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
-    
-    <style>
-        body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
-        #map { width: 100%; height: 100vh; }
-        
-        .legend {
-            position: absolute; bottom: 30px; right: 20px;
-            background: white; padding: 12px; border-radius: 8px;
-            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            font-size: 11px; border-top: 5px solid #00b4d8;
-        }
-        .legend i { width: 25px; height: 12px; display:inline-block; margin-right: 8px; border: 0.5px solid #ccc; }
-
-        /* Pannello Coordinate in tempo reale */
-        .coords-display {
-            position: absolute; bottom: 10px; left: 10px;
-            background: rgba(0,0,0,0.7); color: white; padding: 5px 10px;
-            border-radius: 4px; font-family: monospace; font-size: 12px; z-index: 1001;
-        }
-
-        .gps-button {
-            position: absolute; top: 150px; left: 10px;
-            z-index: 1000; background: white; width: 34px; height: 34px;
-            border-radius: 4px; border: 2px solid rgba(0,0,0,0.2);
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            font-size: 20px;
-        }
-
-        .sea-layer { filter: saturate(140%) contrast(110%); }
-    </style>
-</head>
-<body>
-
-<div id="map"></div>
-<div id="coords" class="coords-display">Lat: 0.0000, Lon: 0.0000</div>
-<div class="gps-button" onclick="getLocation()" title="La mia posizione">🎯</div>
-
-<div class="legend">
-    <h4>Profondità (m)</h4>
-    <div><i style="background: #e0f2f1"></i> 0 - 10 m</div>
-    <div><i style="background: #b2ebf2"></i> 10 - 20 m</div>
-    <div><i style="background: #80deea"></i> 20 - 30 m</div>
-    <div><i style="background: #4dd0e1"></i> 30 - 40 m</div>
-    <div><i style="background: #26c6da"></i> 40 - 50 m</div>
-    <div><i style="background: #00bcd4"></i> 50 - 60 m</div>
-    <div><i style="background: #00acc1"></i> 60 - 70 m</div>
-    <div><i style="background: #0097a7"></i> 70 - 80 m</div>
-    <div><i style="background: #00838f"></i> 80 - 90 m</div>
-    <div><i style="background: #006064"></i> 90 - 100 m</div>
-    <div><i style="background: #01579b"></i> > 100 m</div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-<script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
-
-<script>
-    const map = L.map('map', { maxZoom: 18, minZoom: 4 }).setView([38.0, 15.0], 6);
-
-    // --- LAYER GOOGLE & MARE ---
-    const googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
-    }).addTo(map);
-
-    const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}',{
-        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3']
-    });
-
-    const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        className: 'sea-layer', opacity: 0.8
-    }).addTo(map);
-
-    const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
-
-    L.control.layers({
-        "Google Maps": googleStreets,
-        "Google Satellite": googleHybrid
-    }, {
-        "Colori Batimetrici": bathy,
-        "Dati Nautici": seaMarks
-    }, { collapsed: false }).addTo(map);
-
-    // --- STRUMENTO RIGHELLO (Miglia Nautiche) ---
-    L.control.polylineMeasure({
-        position: 'topleft',
-        unit: 'nauticalmiles', // Impostato su Miglia Nautiche
-        showBearings: true,
-        clearControlTitle: 'Cancella misurazioni',
-        measureControlTitleOn: 'Attiva righello nautico',
-        measureControlTitleOff: 'Disattiva righello'
-    }).addTo(map);
-
-    // --- COORDINATE AL MOUSE ---
-    map.on('mousemove', function(e) {
-        document.getElementById('coords').innerHTML = 
-            `Lat: ${e.latlng.lat.toFixed(4)}, Lon: ${e.latlng.lng.toFixed(4)}`;
-    });
-
-    // --- GESTIONE WAYPOINTS (Click Destro) ---
+// --- GESTIONE WAYPOINTS (Click Destro per creare, Doppio Click per eliminare) ---
     map.on('contextmenu', function(e) {
-        const waypoint = L.marker(e.latlng, {draggable: true}).addTo(map);
-        const popupContent = `
-            <strong>WAYPOINT</strong><br>
-            Lat: ${e.latlng.lat.toFixed(5)}<br>
-            Lon: ${e.latlng.lng.toFixed(5)}<br>
-            <button onclick="map.removeLayer(waypoint)">Elimina</button>
-        `;
-        waypoint.bindPopup(popupContent).openPopup();
-    });
+        // Creiamo il waypoint
+        var waypoint = L.marker(e.latlng, {
+            draggable: true,
+            title: "Doppio click per eliminare"
+        }).addTo(map);
 
-    // --- FUNZIONE GPS ---
-    function getLocation() {
-        map.locate({setView: true, maxZoom: 15});
-        map.on('locationfound', function(e) {
-            L.circle(e.latlng, e.accuracy).addTo(map);
-            L.marker(e.latlng).addTo(map).bindPopup("Sei qui").openPopup();
+        // Creiamo il contenuto del popup
+        var popupContent = "<b>Punto Nave</b><br>" +
+                           "Lat: " + e.latlng.lat.toFixed(5) + "<br>" +
+                           "Lon: " + e.latlng.lng.toFixed(5) + "<br>" +
+                           "<small style='color:red;'>Doppio click sul punto per rimuoverlo</small>";
+
+        waypoint.bindPopup(popupContent);
+
+        // EVENTO ELIMINAZIONE: Se fai doppio click sul marker, sparisce
+        waypoint.on('dblclick', function(e) {
+            map.removeLayer(waypoint);
         });
-    }
-
-    L.Control.geocoder({ placeholder: "Cerca porto o città..." }).addTo(map);
-</script>
-</body>
-</html>
+        
+        // Se trascini il punto, aggiorna le coordinate nel popup
+        waypoint.on('dragend', function(e) {
+            var newPos = e.target.getLatLng();
+            e.target.setPopupContent(
+                "<b>Punto Nave (Spostato)</b><br>" +
+                "Lat: " + newPos.lat.toFixed(5) + "<br>" +
+                "Lon: " + newPos.lng.toFixed(5) + "<br>" +
+                "<small style='color:red;'>Doppio click per rimuovere</small>"
+            );
+        });
+    });
