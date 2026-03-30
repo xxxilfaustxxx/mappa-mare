@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Batimetria Adriatico - Precisa</title>
+    <title>Batimetria Adriatico - Stabile</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -12,11 +12,9 @@
         body { margin: 0; padding: 0; background: #fff; font-family: sans-serif; }
         #map { width: 100%; height: 100vh; cursor: crosshair !important; }
         
-        /* PANNELLO SPOSTATO IN BASSO A SINISTRA */
+        /* PANNELLO IN BASSO A SINISTRA */
         .info-panel {
-            position: absolute; 
-            bottom: 20px; /* Spostato in basso */
-            left: 20px; 
+            position: absolute; bottom: 20px; left: 20px; 
             background: rgba(255,255,255,0.95); padding: 12px 16px; border-radius: 8px;
             z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             border-left: 5px solid #006994;
@@ -26,34 +24,21 @@
         .info-panel p { margin: 0; font-size: 11px; color: #555; line-height: 1.4; }
         .info-panel .highlight { color: #d00; font-weight: bold; }
 
-        /* Bollini profondità marini (Stile omogeneo) */
+        /* Bollini profondità */
         .depth-meter {
-            background: #ffffff;
-            color: #003366;
-            border: 1.5px solid #0055aa;
-            border-radius: 10px;
-            padding: 0px 5px;
-            font-size: 10px;
-            font-weight: 800;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            white-space: nowrap;
+            background: #ffffff; color: #003366; border: 1.5px solid #0055aa;
+            border-radius: 10px; padding: 0px 5px; font-size: 10px; font-weight: 800;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3); white-space: nowrap;
         }
 
         /* Popup profondità da click */
         .depth-popup .leaflet-popup-content-wrapper {
-            background: #003d5b;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            background: #003d5b; color: white; font-weight: bold; font-size: 14px;
+            border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         .depth-popup .leaflet-popup-tip { background: #003d5b; }
 
-        .leaflet-control-layers {
-            border-radius: 8px !important;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
-        }
+        .leaflet-control-layers { border-radius: 8px !important; box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important; }
     </style>
 </head>
 <body>
@@ -62,8 +47,8 @@
 
 <div class="info-panel">
     <h3>Legenda Fondali</h3>
-    <p>Le linee <b>5m</b> e <b>10m</b> segnano i bassi fondali costieri.</p>
-    <p class="highlight">✚ Clicca ovunque sul mare per ottenere la profondità esatta in quel punto.</p>
+    <p>I pallini segnano la linea dei 5m e 10m dalla costa.</p>
+    <p class="highlight">✚ Clicca sul mare per la profondità esatta in tempo reale.</p>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -72,36 +57,36 @@
 <script>
     const map = L.map('map', { maxZoom: 18, minZoom: 7 }).setView([45.40, 12.50], 11);
 
-    // 1. BASE CHIARA
+    // --- MAPPE DI BASE ---
+    // 1. Mappa Stradale Chiara
     const baseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '© OSM © CARTO'
     }).addTo(map);
 
-    // 2. COLORI MARE
-    const bathyEmodnet = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        attribution: 'EMODnet', maxZoom: 18, opacity: 0.85 
-    }).addTo(map);
-
-    const bathyGebco = L.tileLayer.wms('https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv', {
-        layers: 'GEBCO_LATEST', format: 'image/png', transparent: true, version: '1.1.1', opacity: 0.8
+    // 2. Mappa Oceanica ESRI (Alternativa super stabile, non si blocca mai)
+    const esriOcean = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri, GEBCO, NOAA',
+        maxZoom: 13
     });
 
-    // 3. ISOBATE
+    // --- OVERLAY OPZIONALI ---
+    // 3. Colori Mare EMODNET
+    const bathyEmodnet = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
+        attribution: 'EMODnet', maxZoom: 18, opacity: 0.85 
+    });
+
+    // 4. Isobate
     const contourLayer = L.tileLayer.wms('https://tiles.emodnet-bathymetry.eu/wms', {
         layers: 'emodnet:contours', format: 'image/png', transparent: true, version: '1.1.1', opacity: 0.9
-    }).addTo(map);
+    });
 
-    // 4. NOMI CITTA'
+    // 5. Nomi Città
     const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
         pane: 'shadowPane'
     }).addTo(map);
 
-    // -------------------------------------------------------------
-    // 5. RETE OMEGENEA DI PROFONDITA' COSTIERA (5m e 10m parallele)
-    // Ho calcolato le coordinate per seguire la curva della costa
-    // -------------------------------------------------------------
+    // --- RETE OMEGENEA 5m e 10m ---
     const depthData = [
-        // --- LINEA 5 METRI (Distesa uniforme a ~1 km dalla riva) ---
         {lat: 45.69, lng: 13.00, val: "5 m"}, {lat: 45.65, lng: 12.85, val: "5 m"},
         {lat: 45.60, lng: 12.72, val: "5 m"}, {lat: 45.55, lng: 12.65, val: "5 m"},
         {lat: 45.48, lng: 12.50, val: "5 m"}, {lat: 45.42, lng: 12.40, val: "5 m"},
@@ -111,7 +96,6 @@
         {lat: 44.50, lng: 12.30, val: "5 m"}, {lat: 44.30, lng: 12.45, val: "5 m"},
         {lat: 44.15, lng: 12.65, val: "5 m"}, {lat: 44.05, lng: 12.70, val: "5 m"},
         
-        // --- LINEA 10 METRI (Distesa uniforme a ~3 km dalla riva) ---
         {lat: 45.70, lng: 13.10, val: "10 m"}, {lat: 45.66, lng: 12.95, val: "10 m"},
         {lat: 45.61, lng: 12.82, val: "10 m"}, {lat: 45.56, lng: 12.75, val: "10 m"},
         {lat: 45.49, lng: 12.60, val: "10 m"}, {lat: 45.43, lng: 12.50, val: "10 m"},
@@ -130,65 +114,53 @@
     });
     metersGroup.addTo(map);
 
-    // -------------------------------------------------------------
-    // 6. FUNZIONE MAGICA: CLICCA SUL MARE PER LA PROFONDITÀ ESATTA
-    // -------------------------------------------------------------
+    // --- CLICCA PER PROFONDITÀ ESATTA (Tramite API OpenTopoData - 100% compatibile con i browser) ---
     map.on('click', async function(e) {
-        // Mostra un popup di caricamento
         const popup = L.popup({ className: 'depth-popup', closeButton: true })
             .setLatLng(e.latlng)
-            .setContent('<i>Calcolando profondità...</i>')
+            .setContent('<i>Interrogando database...</i>')
             .openOn(map);
 
-        // Coordinate per il server WMS (scambia lat/lng per il formato corretto)
-        const lng = e.latlng.lng;
         const lat = e.latlng.lat;
-        const bounds = map.getBounds();
-        
-        // Costruisce l'URL per interrogare il database GEBCO
-        const wmsUrl = `https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv?` +
-            `SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo` +
-            `&LAYERS=GEBCO_LATEST&QUERY_LAYERS=GEBCO_LATEST` +
-            `&INFO_FORMAT=text/plain` +
-            `&X=${Math.round(map.getSize().x / 2)}&Y=${Math.round(map.getSize().y / 2)}` +
-            `&SRS=EPSG:4326&WIDTH=${map.getSize().x}&HEIGHT=${map.getSize().y}` +
-            `&BBOX=${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+        const lng = e.latlng.lng;
 
         try {
-            // Chiede i dati al server
-            const response = await fetch(wmsUrl);
-            const text = await response.text();
+            // Usiamo OpenTopoData che incapsula i dati GEBCO e permette il caricamento da browser
+            const response = await fetch(`https://api.opentopodata.org/v1/gebco15?locations=${lat},${lng}`);
+            const data = await response.json();
             
-            // Estrae il numero dalla risposta testuale del server
-            const match = text.match(/Elevation:\s*([-\d.]+)/);
-            
-            if (match) {
-                const depth = parseFloat(match[1]);
-                // Se negativo è sotto il livello del mare
-                if (depth < 0) {
-                    popup.setContent(`🔽 Profondità:<br><b style="font-size:18px;">${Math.abs(depth).toFixed(1)} metri</b>`);
+            if (data.status === 'OK' && data.results && data.results.length > 0) {
+                const elevation = data.results[0].elevation;
+                
+                if (elevation < 0) {
+                    // Valore negativo = sotto il livello del mare
+                    popup.setContent(`🔽 Profondità:<br><b style="font-size:18px;">${Math.abs(elevation).toFixed(1)} metri</b>`);
                 } else {
-                    popup.setContent(`📍 Terraferma / Secca<br><b>+${depth.toFixed(1)} m</b>`);
+                    // Valore positivo o zero = terraferma
+                    popup.setContent(`📍 Terraferma / Secca<br>Quota: +${elevation.toFixed(1)} m`);
                 }
             } else {
-                popup.setContent('Dati non disponibili qui');
+                popup.setContent('Dati non disponibili in questo punto');
             }
         } catch (err) {
-            popup.setContent('Errore di connessione al server batimetrico');
+            popup.setContent('Errore di connessione. Riprova.');
         }
     });
 
-    // 7. MENU A DESTRA
+    // --- MENU A DESTRA ---
+    const baseMaps = {
+        "🗺️ Mappa Stradale Chiara": baseMap,
+        "🌊 Mappa Oceanica Esri (Consigliata)": esriOcean
+    };
+
     const overlays = {
-        "🎨 Colori Mare (EMODnet)": bathyEmodnet,
-        "🌍 Colori Mare (GEBCO Alternativa)": bathyGebco,
+        "🎨 Colori Mare EMODNET": bathyEmodnet,
         "📏 Linee Isobate": contourLayer,
         "🔵 Linee 5m e 10m Costiere": metersGroup,
         "🏙️ Nomi Città": labelsLayer
     };
 
-    L.control.layers(null, overlays, { collapsed: false }).addTo(map);
-    
+    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
     L.Control.geocoder().addTo(map);
 
 </script>
