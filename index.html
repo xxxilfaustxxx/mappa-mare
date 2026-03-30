@@ -8,30 +8,29 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
+    <!-- Libreria per leggere i file GPX -->
+    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
     
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* Legenda Richiudibile */
         .legend {
             position: absolute; bottom: 40px; right: 10px;
             background: white; padding: 0; border-radius: 8px;
             z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            font-size: 11px; border-top: 5px solid #00b4d8;
-            width: 140px;
+            font-size: 11px; border-top: 5px solid #00b4d8; width: 140px;
         }
         .legend-header {
             padding: 8px; background: #f8f9fa; cursor: pointer; text-align: center;
             border-bottom: 1px solid #eee; border-radius: 4px 4px 0 0; font-weight: bold;
             user-select: none;
         }
-        .legend-body { padding: 8px 12px; display: none; } /* Nascosto di default */
+        .legend-body { padding: 8px 12px; display: none; }
         .legend-body.open { display: block; }
         .legend div { display: flex; align-items: center; margin-bottom: 3px; }
         .legend i { width: 20px; height: 10px; margin-right: 6px; border: 0.5px solid #aaa; display: inline-block; }
 
-        /* Display Coordinate */
         .coords-display {
             position: absolute; bottom: 10px; left: 10px;
             background: rgba(0,20,40,0.85); color: #00ff00; padding: 6px 14px;
@@ -39,7 +38,6 @@
             border: 1px solid #333; letter-spacing: 1px;
         }
 
-        /* Strumenti Laterali (Spostati più in basso per non coprire zoom/geocoder) */
         .side-tools {
             position: absolute; top: 180px; left: 10px;
             z-index: 1000; display: flex; flex-direction: column; gap: 6px;
@@ -52,9 +50,12 @@
             transition: all 0.2s;
         }
         .tool-btn:hover { background: #e6f2ff; color: #0077b6; transform: scale(1.1); }
+        .tool-btn.active { background: #0077b6; color: white; } /* Classe per bottone attivo */
 
-        /* Fix specifico per il plugin di misura che si sovrapponeva ai bottoni */
         .polyline-measure-control { margin-top: 100px !important; }
+        
+        /* Nascondo l'input file */
+        #gpx-input { display: none; }
     </style>
 </head>
 <body>
@@ -63,6 +64,10 @@
 <div id="coords" class="coords-display">LAT: 0.00000 | LON: 0.00000</div>
 
 <div class="side-tools">
+    <div class="tool-btn" onclick="document.getElementById('gpx-input').click()" title="Importa traccia GPX">📂</div>
+    <input type="file" id="gpx-input" accept=".gpx">
+    
+    <div class="tool-btn" id="draw-route-btn" onclick="toggleDrawRoute()" title="Disegna una rotta manuale">✏️</div>
     <div class="tool-btn" onclick="getLocation()" title="La mia posizione esatta">📍</div>
     <div class="tool-btn" onclick="clearAllWaypoints()" title="Cancella tutti i Waypoint" style="color:red;">🗑️</div>
 </div>
@@ -90,116 +95,136 @@
 
 <script>
     const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
-
-    // Zoom in basso a sinistra per non conflittare con gli strumenti
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    // --- MAPPE DI BASE SICURE E STABILI (Sostituite Google non ufficiale con ESRI) ---
-    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-        attribution: '© Esri', maxZoom: 19
-    }).addTo(map);
-
-    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: '© Esri', maxZoom: 19
-    });
-
-    const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-        attribution: '© Esri', maxZoom: 19
-    });
+    // --- MAPPE DI BASE ---
+    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map);
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
+    const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
 
     // --- OVERLAYS ---
-    // Rimosso il filtro CSS (sea-layer) per evitare le linee bianche tra le tile
-    const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', {
-        opacity: 0.8
-    });
-
+    const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', { opacity: 0.8 });
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
-
-    // Le etichette testuali vanno messe nel pannello overlay predefinito, non nel markerPane
     const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png').addTo(map);
 
     // Menu Controllo
-    const baseMaps = { 
+    L.control.layers({ 
         "Mappa Stradale": esriStreets, 
         "Satellite Puro": esriSatellite,
-        "Satellite + Nomi (Ibrido)": L.layerGroup([esriSatellite, esriHybrid])
-    };
-
-    const overlays = { 
-        "Batimetria (Colori Fondali)": bathy, 
+        "Satellite + Nomi": L.layerGroup([esriSatellite, esriHybrid])
+    }, { 
+        "Batimetria": bathy, 
         "Segnaletica Nautica": seaMarks, 
         "Nomi Località": labels 
-    };
-
-    L.control.layers(baseMaps, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+    }, { collapsed: false, position: 'topright' }).addTo(map);
 
     // RIGHELLO NAUTICO
-    const polylineMeasure = L.control.polylineMeasure({
-        position: 'topleft', 
-        unit: 'nauticalmiles', 
-        showBearings: true,
-        bearingTextIn: 'Rotta: {bearing}°',
-        clearControlTitle: 'Cancella misurazioni'
-    }).addTo(map);
+    L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
 
     // COORDINATE E RICERCA
-    L.Control.geocoder({ placeholder: "Cerca porto, località..." }).addTo(map);
-    map.on('mousemove', function(e) {
-        document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
+    L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
+    map.on('mousemove', e => document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`);
+
+    // --- FUNZIONE 1: IMPORTA GPX ---
+    let gpxLayer = L.layerGroup().addTo(map);
+    document.getElementById('gpx-input').addEventListener('change', function(e) {
+        let file = e.target.files[0];
+        if (!file) return;
+        
+        // Pulisce la traccia precedente se esiste
+        gpxLayer.clearLayers();
+        
+        // Carica il file GPX
+        let gpxData = omnivore.gpx(file, null, L.geoJSON({
+            style: { color: 'red', weight: 4, opacity: 0.8 },
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, { radius: 4, fillColor: 'red', color: '#000', weight: 1, fillOpacity: 1 });
+            }
+        })).on('ready', function() {
+            map.fitBounds(gpxData.getBounds(), { padding: [50,50] });
+            gpxData.addTo(gpxLayer);
+            alert("Traccia GPX caricata con successo!");
+        }).on('error', function() {
+            alert("Errore nel leggere il file GPX. Assicurati che il file sia valido.");
+        });
+        
+        // Resetta l'input per permettere di ricaricare lo stesso file
+        this.value = '';
     });
 
-    // GESTIONE WAYPOINTS
-    let waypointGroup = L.layerGroup().addTo(map);
-    
-    // Click destro per aggiungere waypoint
-    map.on('contextmenu', function(e) {
-        e.originalEvent.preventDefault(); // Blocca il menu del browser
-        
-        const icon = L.divIcon({
-            className: '',
-            html: '<div style="background:#0077b6; width:14px; height:14px; border:2px solid white; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5);"></div>',
-            iconSize: [14, 14], iconAnchor: [7, 7]
-        });
+    // --- FUNZIONE 2: DISEGNA ROTTA MANUALE ---
+    let isDrawingRoute = false;
+    let routePoints = [];
+    let routeLine = null;
+    let routeMarkers = L.layerGroup().addTo(map);
 
+    function toggleDrawRoute() {
+        isDrawingRoute = !isDrawingRoute;
+        const btn = document.getElementById('draw-route-btn');
+        
+        if (isDrawingRoute) {
+            btn.classList.add('active');
+            document.getElementById('map').style.cursor = 'crosshair';
+            routePoints = [];
+            routeMarkers.clearLayers();
+        } else {
+            btn.classList.remove('active');
+            document.getElementById('map').style.cursor = '';
+            // Calcola distanza finale se ci sono almeno 2 punti
+            if (routePoints.length >= 2) calculateRouteDistance();
+        }
+    }
+
+    map.on('click', function(e) {
+        if (!isDrawingRoute) return;
+
+        routePoints.push(e.latlng);
+        
+        // Aggiunge il pallino della rotta
+        L.circleMarker(e.latlng, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers);
+        
+        // Disegna la linea aggiornata
+        if (routeLine) map.removeLayer(routeLine);
+        routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
+    });
+
+    function calculateRouteDistance() {
+        let totalDistanceMeters = 0;
+        for (let i = 0; i < routePoints.length - 1; i++) {
+            totalDistanceMeters += routePoints[i].distanceTo(routePoints[i + 1]);
+        }
+        let totalNM = (totalDistanceMeters / 1852).toFixed(2);
+        
+        // Mostra popup a metà strada con la distanza
+        const midPoint = routePoints[Math.floor(routePoints.length / 2)];
+        L.popup().setLatLng(midPoint)
+            .setContent(`<b>Rotta Completata</b><br>Distanza_totale: <span style="color:#0077b6; font-size:16px;">${totalNM} NM</span>`)
+            .openOn(map);
+    }
+
+    // --- GESTIONE WAYPOINTS (Tasto destro - invariato) ---
+    let waypointGroup = L.layerGroup().addTo(map);
+    map.on('contextmenu', function(e) {
+        e.originalEvent.preventDefault();
+        const icon = L.divIcon({ className: '', html: '<div style="background:#d00; width:14px; height:14px; border:2px solid white; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5);"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
         const waypoint = L.marker(e.latlng, { draggable: true, icon: icon }).addTo(waypointGroup);
-        
-        const updatePopup = (ll) => {
-            waypoint.bindPopup(`
-                <b>Waypoint</b><br>
-                LAT: ${ll.lat.toFixed(5)}<br>
-                LON: ${ll.lng.toFixed(5)}<br>
-                <small style="color:#888; cursor:pointer;" onclick="this.closest('.leaflet-popup')._source.remove()">[Clicca per eliminare]</small>
-            `);
-        };
-        
+        const updatePopup = (ll) => waypoint.bindPopup(`<b>Waypoint</b><br>LAT: ${ll.lat.toFixed(5)}<br>LON: ${ll.lng.toFixed(5)}<br><small style="color:#888;">Trascina per spostare</small>`).openPopup();
         updatePopup(e.latlng);
         waypoint.on('dragend', (ev) => updatePopup(ev.target.getLatLng()));
     });
 
-    function clearAllWaypoints() {
-        if(confirm("Vuoi cancellare tutti i Waypoint?")) waypointGroup.clearLayers();
-    }
+    function clearAllWaypoints() { if(confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers(); }
 
-    // GEOLOCALIZZAZIONE CORRETTA (Senza listener multipli)
-    let locationMarker = null;
-    let locationCircle = null;
-
+    // --- GEOLOCALIZZAZIONE ---
+    let locationMarker = null, locationCircle = null;
     function getLocation() {
-        if (locationMarker) {
-            map.removeLayer(locationMarker);
-            map.removeLayer(locationCircle);
-        }
-
+        if (locationMarker) { map.removeLayer(locationMarker); map.removeLayer(locationCircle); }
         map.locate({setView: true, maxZoom: 15});
-        
-        map.once('locationfound', (e) => { // USO 'ONCE' invece di 'ON' per evitare sovrapposizioni
+        map.once('locationfound', (e) => {
             locationCircle = L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1, weight: 1}).addTo(map);
-            locationMarker = L.marker(e.latlng).addTo(map).bindPopup("La tua posizione esatta").openPopup();
+            locationMarker = L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
         });
-
-        map.once('locationerror', (e) => {
-            alert("Impossibile trovare la posizione. Assicurati che il GPS sia attivo.");
-        });
+        map.once('locationerror', () => alert("Impossibile trovare la posizione."));
     }
 </script>
 </body>
