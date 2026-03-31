@@ -123,12 +123,9 @@
     </div>
 </div>
 
-<!-- CARICAMENTO LIBRERIE CORE (L'ORDINE È FONDAMENTALE) -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
-<!-- Libreria Griglia caricata DOPO Leaflet -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
 
 <script>
     const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
@@ -144,37 +141,52 @@
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
     const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // --- GRIGLIA MERIDIANE E PARALLELE ---
-    const graticule = L.latlngGraticule({
-        showLabel: true,
-        color: 'rgba(0, 0, 100, 0.2)',
-        weight: 1,
-        zoomInterval: [
-            {start: 2, end: 3, interval: 10},
-            {start: 4, end: 5, interval: 5},
-            {start: 6, end: 7, interval: 1},
-            {start: 8, end: 10, interval: 0.5}
-        ],
-        fontColor: 'rgba(0, 50, 100, 0.8)',
-        fontSize: 10
-    });
+    // PREPARO I LAYER STANDARD SUBITO (così la mappa parte sicura)
+    let overlays = { 
+        "Batimetria": bathy, 
+        "Segnaletica Nautica": seaMarks, 
+        "Nomi Località": labels
+    };
 
-    // Menu Controllo (Aggiunta griglia)
+    // TENTO DI CARICARE LA GRIGLIA IN MODO SICURO (Try/Catch)
+    // Se il tuo browser blocca lo script esterno, non si bloccherà più tutta la mappa!
+    try {
+        // Carico la libreria della griglia dinamicamente
+        let script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js';
+        script.onload = function() {
+            const graticule = L.latlngGraticule({
+                showLabel: true,
+                color: 'rgba(0, 0, 100, 0.2)',
+                weight: 1,
+                zoomInterval: [
+                    {start: 2, end: 3, interval: 10},
+                    {start: 4, end: 5, interval: 5},
+                    {start: 6, end: 7, interval: 1},
+                    {start: 8, end: 10, interval: 0.5}
+                ],
+                fontColor: 'rgba(0, 50, 100, 0.8)',
+                fontSize: 10
+            });
+            // Aggiungo la griglia al menù solo se il caricamento ha successo
+            overlays["Griglia Gradi"] = graticule;
+        };
+        document.head.appendChild(script);
+    } catch (e) {
+        console.warn("Impossibile caricare la libreria delle griglie.");
+    }
+
+    // CREO IL MENU A DESTRA (Ora è al sicuro, si crea sempre)
     L.control.layers({ 
         "Mappa Stradale": esriStreets, 
         "Satellite Puro": esriSatellite,
         "Satellite + Nomi": L.layerGroup([esriSatellite, esriHybrid])
-    }, { 
-        "Batimetria": bathy, 
-        "Segnaletica Nautica": seaMarks, 
-        "Nomi Località": labels,
-        "Griglia Gradi": graticule  
-    }, { collapsed: false, position: 'topright' }).addTo(map);
+    }, overlays, { collapsed: false, position: 'topright' }).addTo(map);
 
     // RIGHELLO NAUTICO
     L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
 
-    // COORDINATE E RICERCA
+    // COORDINATE E RICERCA (Ora sono al sicuro)
     L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
     map.on('mousemove', e => document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`);
 
