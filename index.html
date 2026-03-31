@@ -3,135 +3,671 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico (Griglia Stile Professionale)</title>
-    
-    <!-- STILI CSS -->
+    <title>NautChart — Plotter Nautico</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
 
     <style>
-        body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
+        /* ── ROOT VARIABLES ───────────────────────────────── */
+        :root {
+            --navy-900: #020c1b;
+            --navy-800: #071a2f;
+            --navy-700: #0a2440;
+            --navy-600: #0d3058;
+            --cyan-bright: #00d4ff;
+            --cyan-mid:   #00a8cc;
+            --cyan-dim:   #007a99;
+            --amber:      #f0a500;
+            --amber-dim:  #b07800;
+            --white:      #e8f4f8;
+            --white-dim:  rgba(232,244,248,0.55);
+            --glass-bg:   rgba(2, 18, 38, 0.82);
+            --glass-border: rgba(0, 212, 255, 0.18);
+            --panel-radius: 10px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ── RESET & BASE ─────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--navy-900);
+            font-family: 'Barlow', sans-serif;
+            color: var(--white);
+            overflow: hidden;
+        }
+
         #map { width: 100%; height: 100vh; }
-        
-        /* Interfaccia Utente */
-        .legend {
-            position: absolute; bottom: 40px; right: 10px;
-            background: white; padding: 0; border-radius: 8px;
-            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            font-size: 11px; border-top: 5px solid #00b4d8; width: 140px;
-        }
-        .legend-header {
-            padding: 8px; background: #f8f9fa; cursor: pointer; text-align: center;
-            border-bottom: 1px solid #eee; border-radius: 4px 4px 0 0; font-weight: bold;
-            user-select: none;
-        }
-        .legend-body { padding: 8px 12px; display: none; }
-        .legend-body.open { display: block; }
-        .legend div { display: flex; align-items: center; margin-bottom: 3px; }
-        .legend i { width: 20px; height: 10px; margin-right: 6px; border: 0.5px solid #aaa; display: inline-block; }
 
-        .coords-display {
-            position: absolute; bottom: 10px; left: 10px;
-            background: rgba(0,20,40,0.85); color: #00ff00; padding: 6px 14px;
-            border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; z-index: 1001;
-            border: 1px solid #333; letter-spacing: 1px;
+        /* ── HEADER BAR ───────────────────────────────────── */
+        #app-header {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 52px;
+            background: linear-gradient(90deg, var(--navy-900) 0%, var(--navy-800) 60%, rgba(2,12,27,0.0) 100%);
+            border-bottom: 1px solid var(--glass-border);
+            z-index: 1100;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 14px;
+            pointer-events: none;
         }
 
+        #app-header .logo-mark {
+            width: 32px; height: 32px;
+            border: 2px solid var(--cyan-bright);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            flex-shrink: 0;
+        }
+        #app-header .logo-mark::before {
+            content: '';
+            width: 10px; height: 10px;
+            background: var(--amber);
+            border-radius: 50%;
+        }
+        #app-header .logo-mark::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 22px; height: 1px;
+            background: var(--cyan-bright);
+            transform: translate(-50%, -50%) rotate(-40deg);
+            opacity: 0.7;
+        }
+
+        #app-header h1 {
+            font-family: 'Orbitron', monospace;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 3px;
+            color: var(--white);
+            text-transform: uppercase;
+        }
+
+        #app-header .header-tag {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--cyan-bright);
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+
+        /* ── COORDINATE DISPLAY ───────────────────────────── */
+        #coords {
+            position: absolute;
+            bottom: 14px; left: 14px;
+            background: var(--glass-bg);
+            color: var(--cyan-bright);
+            padding: 7px 16px;
+            border-radius: 6px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 13px;
+            z-index: 1001;
+            border: 1px solid var(--glass-border);
+            letter-spacing: 1.5px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.08);
+        }
+
+        /* ── SIDEBAR TOOLS ────────────────────────────────── */
         .side-tools {
-            position: absolute; top: 120px; left: 10px;
-            z-index: 1000; display: flex; flex-direction: column; gap: 6px;
+            position: absolute;
+            top: 68px;
+            left: 12px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: var(--glass-bg);
+            padding: 8px 6px;
+            border-radius: var(--panel-radius);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
         }
+
+        .side-tools::before {
+            content: 'TOOLS';
+            display: block;
+            font-family: 'Orbitron', monospace;
+            font-size: 8px;
+            letter-spacing: 2px;
+            color: var(--cyan-dim);
+            text-align: center;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--glass-border);
+            margin-bottom: 2px;
+        }
+
         .tool-btn {
-            background: white; width: 34px; height: 34px;
-            border-radius: 4px; border: none;
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            font-size: 16px; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            transition: all 0.2s;
+            background: transparent;
+            width: 36px; height: 36px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white-dim);
+            transition: var(--transition);
+            position: relative;
         }
-        .tool-btn:hover { background: #e6f2ff; color: #0077b6; transform: scale(1.1); }
-        .tool-btn.active { background: #0077b6; color: white; }
-        .polyline-measure-control { margin-top: 100px !important; }
-        
+
+        .tool-btn svg {
+            width: 17px; height: 17px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .tool-btn:hover {
+            background: rgba(0, 212, 255, 0.12);
+            border-color: var(--glass-border);
+            color: var(--cyan-bright);
+        }
+
+        .tool-btn.active {
+            background: rgba(0, 212, 255, 0.18);
+            border-color: var(--cyan-mid);
+            color: var(--cyan-bright);
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.25);
+        }
+
+        .tool-btn.danger:hover {
+            background: rgba(220, 40, 40, 0.15);
+            border-color: rgba(220,40,40,0.4);
+            color: #ff6b6b;
+        }
+
+        .tool-separator {
+            height: 1px;
+            background: var(--glass-border);
+            margin: 2px 0;
+        }
+
         #gpx-input, #route-input { display: none; }
 
+        /* ── PANELS (CORRENTI, ECC.) ──────────────────────── */
         .current-panel {
-            position: absolute; top: 120px; left: 60px;
-            background: white; padding: 15px; border-radius: 8px;
-            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            width: 260px; border-top: 5px solid #023e8a;
+            position: absolute;
+            top: 68px; left: 62px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(20px);
+            border-radius: var(--panel-radius);
+            z-index: 1000;
+            width: 270px;
+            display: none;
+            overflow: hidden;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.05);
+            animation: panelIn 0.22s ease;
+        }
+
+        @keyframes panelIn {
+            from { opacity: 0; transform: translateX(-8px) scale(0.98); }
+            to   { opacity: 1; transform: translateX(0) scale(1); }
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px 10px;
+            background: rgba(0, 212, 255, 0.05);
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .panel-header h4 {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: var(--cyan-bright);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-header h4::before {
+            content: '';
+            width: 6px; height: 6px;
+            background: var(--amber);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px var(--amber);
+        }
+
+        .close-panel {
+            background: transparent;
+            border: none;
+            color: var(--white-dim);
+            cursor: pointer;
+            width: 24px; height: 24px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: var(--transition);
+            line-height: 1;
+        }
+
+        .close-panel:hover { color: var(--white); background: rgba(255,255,255,0.08); }
+
+        .panel-body { padding: 14px; }
+
+        .panel-body label {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.8px;
+            color: var(--white-dim);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .panel-body input[type="number"] {
+            width: 100%;
+            padding: 7px 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 5px;
+            color: var(--cyan-bright);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 14px;
+            margin-top: 4px;
+            transition: var(--transition);
+            outline: none;
+        }
+
+        .panel-body input[type="number"]:focus {
+            border-color: var(--cyan-mid);
+            background: rgba(0, 212, 255, 0.07);
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.12);
+        }
+
+        .calc-btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, var(--cyan-dim), var(--cyan-mid));
+            border: none;
+            border-radius: 6px;
+            color: var(--navy-900);
+            font-family: 'Orbitron', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: var(--transition);
+            text-transform: uppercase;
+        }
+
+        .calc-btn:hover {
+            background: linear-gradient(135deg, var(--cyan-mid), var(--cyan-bright));
+            box-shadow: 0 4px 16px rgba(0, 212, 255, 0.35);
+        }
+
+        .calc-result {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .calc-result .result-label {
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: var(--cyan-dim);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .calc-result .result-value {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 22px;
+            color: var(--amber);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .calc-result .result-sub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 18px;
+            color: var(--cyan-bright);
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── LEGENDA ──────────────────────────────────────── */
+        .legend {
+            position: absolute;
+            bottom: 44px; right: 12px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(16px);
+            border-radius: var(--panel-radius);
+            z-index: 1000;
+            width: 158px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        .legend-header {
+            padding: 9px 12px;
+            background: rgba(0, 212, 255, 0.05);
+            border-bottom: 1px solid var(--glass-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+
+        .legend-header span {
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: var(--cyan-bright);
+            text-transform: uppercase;
+        }
+
+        .legend-chevron {
+            color: var(--cyan-dim);
+            font-size: 10px;
+            transition: var(--transition);
+        }
+
+        .legend-body {
+            padding: 10px 12px;
             display: none;
         }
-        .current-panel h4 { margin: 0 0 10px 0; color: #023e8a; font-size: 15px; }
-        .current-panel label { display: block; font-size: 12px; margin-bottom: 10px; color: #333; }
-        .current-panel input { width: 100%; padding: 4px; box-sizing: border-box; margin-top: 3px; border: 1px solid #ccc; border-radius: 3px;}
-        .calc-btn { background: #0077b6; color: white; border: none; padding: 8px; width: 100%; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .calc-btn:hover { background: #005f8a; }
-        .calc-result { margin-top: 10px; padding: 8px; background: #e8f4fd; border-radius: 4px; font-size: 13px; display: none; }
-        .close-panel { position: absolute; top: 8px; right: 10px; cursor: pointer; font-size: 18px; color: #888; background: none; border: none; font-weight: bold;}
-        .close-panel:hover { color: red; }
 
-        /* ETICHETTE GRIGLIA STILE PROFESSIONALE (Nero/Grigio) */
+        .legend-body.open { display: block; }
+
+        .legend-body .depth-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+            font-size: 11px;
+            color: var(--white-dim);
+            font-family: 'Barlow', sans-serif;
+        }
+
+        .depth-swatch {
+            width: 22px; height: 8px;
+            border-radius: 2px;
+            flex-shrink: 0;
+            border: none;
+        }
+
+        /* ── GRATICULE LABELS ─────────────────────────────── */
         .graticule-label {
-            background: rgba(255, 255, 255, 0.85); /* Bianco semi-trasparente */
-            border: 1px solid #666; /* Bordo grigio scuro sottile */
-            color: #000000; /* Testo nero opaco */
-            font-size: 13px;
-            font-weight: 500; /* Grassetto medio */
-            padding: 2px 4px;
+            background: rgba(2, 18, 38, 0.78);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #a8e6f0;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            padding: 2px 5px;
             border-radius: 3px;
             white-space: nowrap;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.2); /* Ombra leggera */
             text-align: center;
-            line-height: 1;
+            line-height: 1.2;
+            letter-spacing: 0.5px;
+        }
+
+        /* ── LEAFLET OVERRIDES ────────────────────────────── */
+        .leaflet-control-layers {
+            background: var(--glass-bg) !important;
+            border: 1px solid var(--glass-border) !important;
+            backdrop-filter: blur(16px) !important;
+            border-radius: var(--panel-radius) !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+            color: var(--white) !important;
+            font-family: 'Barlow', sans-serif !important;
+            font-size: 13px !important;
+            overflow: hidden;
+        }
+
+        .leaflet-control-layers-toggle {
+            background-color: var(--navy-800) !important;
+        }
+
+        .leaflet-control-layers-separator {
+            border-color: var(--glass-border) !important;
+        }
+
+        .leaflet-control-layers-expanded {
+            padding: 10px 14px !important;
+        }
+
+        .leaflet-control-layers label span {
+            color: var(--white) !important;
+        }
+
+        .leaflet-bar {
+            border: 1px solid var(--glass-border) !important;
+            border-radius: 6px !important;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+        }
+
+        .leaflet-bar a {
+            background: var(--glass-bg) !important;
+            color: var(--white-dim) !important;
+            border-bottom-color: var(--glass-border) !important;
+            transition: var(--transition);
+        }
+
+        .leaflet-bar a:hover {
+            background: rgba(0, 212, 255, 0.15) !important;
+            color: var(--cyan-bright) !important;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: var(--glass-bg) !important;
+            border: 1px solid var(--glass-border) !important;
+            color: var(--white) !important;
+            backdrop-filter: blur(16px) !important;
+            border-radius: var(--panel-radius) !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+            font-family: 'Barlow', sans-serif !important;
+        }
+
+        .leaflet-popup-tip {
+            background: var(--navy-700) !important;
+        }
+
+        .geocoder-control input {
+            background: var(--glass-bg) !important;
+            border: 1px solid var(--glass-border) !important;
+            color: var(--white) !important;
+            font-family: 'Barlow', sans-serif !important;
+            border-radius: 6px !important;
+            padding: 8px 12px !important;
+        }
+
+        .geocoder-control input::placeholder { color: var(--white-dim) !important; }
+
+        .geocoder-control-suggestions {
+            background: var(--navy-800) !important;
+            border: 1px solid var(--glass-border) !important;
+            border-radius: 6px !important;
+            color: var(--white) !important;
+        }
+
+        .polyline-measure-tooltip {
+            background: var(--glass-bg) !important;
+            border: 1px solid var(--glass-border) !important;
+            color: var(--cyan-bright) !important;
+            font-family: 'Share Tech Mono', monospace !important;
+        }
+
+        /* Zoom control repositioning */
+        .leaflet-bottom.leaflet-left { margin-bottom: 40px; }
+
+        /* ── SCANLINE OVERLAY (atmosphere) ───────────────── */
+        #scanline {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 2000;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.04) 2px,
+                rgba(0,0,0,0.04) 4px
+            );
+        }
+
+        /* ── TOOLTIP ──────────────────────────────────────── */
+        [data-tip] { position: relative; }
+        [data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            left: calc(100% + 10px);
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--navy-900);
+            border: 1px solid var(--glass-border);
+            color: var(--white);
+            font-size: 11px;
+            font-family: 'Barlow', sans-serif;
+            white-space: nowrap;
+            padding: 4px 10px;
+            border-radius: 4px;
+            letter-spacing: 0.3px;
+            pointer-events: none;
+            z-index: 9999;
         }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
-<div id="coords" class="coords-display">LAT: 0.00000 | LON: 0.00000</div>
+<!-- Atmosfera scanline -->
+<div id="scanline"></div>
 
+<!-- Header -->
+<div id="app-header">
+    <div class="logo-mark"></div>
+    <h1>NautChart</h1>
+    <span class="header-tag">// PLOTTER NAUTICO v2.0</span>
+</div>
+
+<div id="map"></div>
+<div id="coords">LAT: 0.00000 &nbsp;|&nbsp; LON: 0.00000</div>
+
+<!-- Sidebar Tools -->
 <div class="side-tools">
-    <div class="tool-btn" onclick="document.getElementById('gpx-input').click()" title="Importa traccia GPX">📂</div>
+
+    <div class="tool-btn" data-tip="Importa traccia GPX"
+         onclick="document.getElementById('gpx-input').click()">
+        <svg viewBox="0 0 24 24"><path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
     <input type="file" id="gpx-input" accept=".gpx">
-    
-    <div class="tool-btn" id="draw-route-btn" onclick="toggleDrawRoute()" title="Disegna una rotta manuale">✏️</div>
-    <div class="tool-btn" onclick="saveRouteToFile()" title="Salva rotta sul PC">💾</div>
-    <div class="tool-btn" onclick="document.getElementById('route-input').click()" title="Carica rotta salvata">📥</div>
+
+    <div class="tool-btn" id="draw-route-btn" data-tip="Disegna rotta manuale"
+         onclick="toggleDrawRoute()">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+    </div>
+
+    <div class="tool-btn" data-tip="Salva rotta sul PC"
+         onclick="saveRouteToFile()">
+        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    </div>
+
+    <div class="tool-btn" data-tip="Carica rotta salvata"
+         onclick="document.getElementById('route-input').click()">
+        <svg viewBox="0 0 24 24"><path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </div>
     <input type="file" id="route-input" accept=".json">
 
-    <div class="tool-btn" onclick="toggleCurrentPanel()" title="Calcolo Correnti">🌊</div>
-    <div class="tool-btn" onclick="getLocation()" title="La mia posizione esatta">📍</div>
-    <div class="tool-btn" onclick="clearAllWaypoints()" title="Cancella tutti i Waypoint" style="color:red;">🗑️</div>
+    <div class="tool-separator"></div>
+
+    <div class="tool-btn" data-tip="Calcolo Correnti"
+         onclick="toggleCurrentPanel()">
+        <svg viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+    </div>
+
+    <div class="tool-btn" data-tip="La mia posizione"
+         onclick="getLocation()">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+    </div>
+
+    <div class="tool-separator"></div>
+
+    <div class="tool-btn danger" data-tip="Cancella tutti i Waypoint"
+         onclick="clearAllWaypoints()">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+    </div>
 </div>
 
 <!-- Pannello Correnti -->
 <div id="current-panel" class="current-panel">
-    <button class="close-panel" onclick="toggleCurrentPanel()">×</button>
-    <h4>Calcolo Correnti</h4>
-    <label>Rotta Vera Desiderata (°): <input type="number" id="inp-cog" value="45"></label>
-    <label>Velocità Barca (Nodi): <input type="number" id="inp-stw" value="6" step="0.1"></label>
-    <label>Direzione Corrente - Set (°): <input type="number" id="inp-set" value="180"></label>
-    <label>Velocità Corrente - Drift (Nodi): <input type="number" id="inp-drift" value="1" step="0.1"></label>
-    <button class="calc-btn" onclick="calcCurrent()">Calcola Rotta Timone</button>
-    <div id="current-result" class="calc-result"></div>
+    <div class="panel-header">
+        <h4>Calcolo Correnti</h4>
+        <button class="close-panel" onclick="toggleCurrentPanel()">✕</button>
+    </div>
+    <div class="panel-body">
+        <label>Rotta Vera Desiderata (°)
+            <input type="number" id="inp-cog" value="45">
+        </label>
+        <label>Velocità Barca (Nodi)
+            <input type="number" id="inp-stw" value="6" step="0.1">
+        </label>
+        <label>Direzione Corrente — Set (°)
+            <input type="number" id="inp-set" value="180">
+        </label>
+        <label>Velocità Corrente — Drift (Nodi)
+            <input type="number" id="inp-drift" value="1" step="0.1">
+        </label>
+        <button class="calc-btn" onclick="calcCurrent()">Calcola Rotta Timone</button>
+        <div id="current-result" class="calc-result">
+            <div class="result-label">Risultato Navigazione</div>
+            <span class="result-value" id="res-heading">—</span>
+            <span class="result-sub" id="res-sog">—</span>
+        </div>
+    </div>
 </div>
 
+<!-- Legenda Batimetria -->
 <div class="legend">
-    <div class="legend-header" onclick="this.nextElementSibling.classList.toggle('open')">Profondità (m) ▼</div>
+    <div class="legend-header" onclick="toggleLegend(this)">
+        <span>Profondità</span>
+        <span class="legend-chevron">▾</span>
+    </div>
     <div class="legend-body">
-        <div><i style="background: #e0f2f1"></i> 0 - 10 m</div>
-        <div><i style="background: #b2ebf2"></i> 10 - 20 m</div>
-        <div><i style="background: #80deea"></i> 20 - 30 m</div>
-        <div><i style="background: #4dd0e1"></i> 30 - 40 m</div>
-        <div><i style="background: #26c6da"></i> 40 - 50 m</div>
-        <div><i style="background: #00bcd4"></i> 50 - 60 m</div>
-        <div><i style="background: #00acc1"></i> 60 - 70 m</div>
-        <div><i style="background: #0097a7"></i> 70 - 80 m</div>
-        <div><i style="background: #00838f"></i> 80 - 90 m</div>
-        <div><i style="background: #006064"></i> 90 - 100 m</div>
-        <div><i style="background: #01579b"></i> > 100 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#e0f2f1"></div>0–10 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#b2ebf2"></div>10–20 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#80deea"></div>20–30 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#4dd0e1"></div>30–40 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#26c6da"></div>40–50 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#00bcd4"></div>50–60 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#00acc1"></div>60–70 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#0097a7"></div>70–80 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#00838f"></div>80–90 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#006064"></div>90–100 m</div>
+        <div class="depth-row"><div class="depth-swatch" style="background:#01579b"></div>&gt; 100 m</div>
     </div>
 </div>
 
@@ -142,90 +678,72 @@
 <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
 
 <script>
-    // 1. MAPPA BASE
+    // ── 1. MAPPA BASE ────────────────────────────────────────
     const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    // Layer Base
-    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map);
+    const esriStreets   = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map);
     const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
-    const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
+    const esriHybrid    = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
 
-    // Overlay Base
-    const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', { opacity: 0.8 });
+    const bathy    = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', { opacity: 0.8 });
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
-    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
+    const labels   = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
 
-    // 2. GRIGLIA PERSONALIZZATA
+    // ── 2. GRIGLIA ───────────────────────────────────────────
     const graticuleLayer = L.layerGroup();
-    
+
     function drawCustomGraticule() {
         graticuleLayer.clearLayers();
-        
         if (!map.hasLayer(graticuleLayer)) return;
 
         const bounds = map.getBounds();
-        const zoom = map.getZoom();
-        
-        // Intervallo
+        const zoom   = map.getZoom();
+
         let step = 1;
-        if (zoom >= 5) step = 0.5;
-        if (zoom >= 7) step = 0.2;
-        if (zoom >= 9) step = 0.1;
+        if (zoom >= 5)  step = 0.5;
+        if (zoom >= 7)  step = 0.2;
+        if (zoom >= 9)  step = 0.1;
         if (zoom >= 11) step = 0.05;
 
-        // Calcolo limiti
-        const west = bounds.getWest();
-        const east = bounds.getEast();
-        const south = bounds.getSouth();
-        const north = bounds.getNorth();
+        const west = bounds.getWest(), east = bounds.getEast();
+        const south = bounds.getSouth(), north = bounds.getNorth();
 
         const startLat = Math.floor(south / step) * step;
-        const endLat = Math.ceil(north / step) * step;
-        const startLng = Math.floor(west / step) * step;
-        const endLng = Math.ceil(east / step) * step;
+        const endLat   = Math.ceil(north / step)  * step;
+        const startLng = Math.floor(west / step)  * step;
+        const endLng   = Math.ceil(east / step)   * step;
 
-        // Offset per evitare tagli ai bordi
-        const offsetX = (east - west) * 0.02;
+        const offsetX = (east - west)   * 0.02;
         const offsetY = (north - south) * 0.02;
 
-        // Disegna Paralleli (Latitudini)
         for (let lat = startLat; lat <= endLat; lat += step) {
-            let latFixed = parseFloat(lat.toFixed(4));
-
-            L.polyline([[latFixed, west], [latFixed, east]], {
-                color: '#555', weight: 1, opacity: 0.4, interactive: false
+            let latF = parseFloat(lat.toFixed(4));
+            L.polyline([[latF, west], [latF, east]], {
+                color: 'rgba(0,212,255,0.25)', weight: 0.8, opacity: 1, interactive: false
             }).addTo(graticuleLayer);
-
-            const labelLat = L.marker([latFixed, west + offsetX], {
+            L.marker([latF, west + offsetX], {
                 icon: L.divIcon({
                     className: 'graticule-label-container',
-                    html: `<div class="graticule-label">${latFixed.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
-                    iconSize: [40, 20],
-                    iconAnchor: [5, 10]
+                    html: `<div class="graticule-label">${latF.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
+                    iconSize: [44, 20], iconAnchor: [5, 10]
                 }),
-                interactive: false,
-                zIndexOffset: 1000
+                interactive: false, zIndexOffset: 1000
             }).addTo(graticuleLayer);
         }
 
-        // Disegna Meridiani (Longitudini)
         for (let lng = startLng; lng <= endLng; lng += step) {
-            let lngFixed = parseFloat(lng.toFixed(4));
-
-            L.polyline([[south, lngFixed], [north, lngFixed]], {
-                color: '#555', weight: 1, opacity: 0.4, interactive: false
+            let lngF = parseFloat(lng.toFixed(4));
+            L.polyline([[south, lngF], [north, lngF]], {
+                color: 'rgba(0,212,255,0.25)', weight: 0.8, opacity: 1, interactive: false
             }).addTo(graticuleLayer);
-
-            const labelLng = L.marker([south + offsetY, lngFixed], {
+            L.marker([south + offsetY, lngF], {
                 icon: L.divIcon({
                     className: 'graticule-label-container',
-                    html: `<div class="graticule-label">${lngFixed.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
-                    iconSize: [40, 20],
-                    iconAnchor: [20, 20]
+                    html: `<div class="graticule-label">${lngF.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
+                    iconSize: [44, 20], iconAnchor: [20, 20]
                 }),
-                interactive: false,
-                zIndexOffset: 1000
+                interactive: false, zIndexOffset: 1000
             }).addTo(graticuleLayer);
         }
     }
@@ -233,59 +751,66 @@
     map.on('moveend', drawCustomGraticule);
     map.on('zoomend', drawCustomGraticule);
 
-    // Oggetto Overlays
-    let overlays = { 
-        "Griglia (Paralleli/Meridiani)": graticuleLayer, 
-        "Batimetria": bathy, 
-        "Segnaletica Nautica": seaMarks, 
-        "Nomi Località": labels
+    // ── 3. CONTROLLI ────────────────────────────────────────
+    const overlays = {
+        "Griglia (Paralleli/Meridiani)": graticuleLayer,
+        "Batimetria":        bathy,
+        "Segnaletica Nautica": seaMarks,
+        "Nomi Località":     labels
     };
 
-    // 3. CONTROLLI
-    L.control.layers({ 
-        "Mappa Stradale": esriStreets, 
-        "Satellite Puro": esriSatellite,
-        "Satellite + Nomi": L.layerGroup([esriSatellite, esriHybrid])
+    L.control.layers({
+        "Mappa Stradale":    esriStreets,
+        "Satellite Puro":    esriSatellite,
+        "Satellite + Nomi":  L.layerGroup([esriSatellite, esriHybrid])
     }, overlays, { collapsed: false, position: 'topright' }).addTo(map);
 
     if (typeof L.control.polylineMeasure !== 'undefined') {
-        L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
+        L.control.polylineMeasure({
+            position: 'topleft',
+            unit: 'nauticalmiles',
+            showBearings: true,
+            bearingTextIn: 'Rotta: {bearing}°',
+            clearControlTitle: 'Cancella misurazioni'
+        }).addTo(map);
     }
 
     if (typeof L.Control.Geocoder !== 'undefined') {
-        L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
+        L.Control.geocoder({ placeholder: "Cerca porto o waypoint..." }).addTo(map);
     }
 
     map.on('mousemove', e => {
-        document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
+        document.getElementById('coords').innerHTML =
+            `LAT:&nbsp;${e.latlng.lat.toFixed(5)}&nbsp;&nbsp;|&nbsp;&nbsp;LON:&nbsp;${e.latlng.lng.toFixed(5)}`;
     });
 
-    // 4. FUNZIONI UTILITY
-    
+    // ── 4. GPX ──────────────────────────────────────────────
     let gpxLayer = L.layerGroup().addTo(map);
+
     if (typeof omnivore !== 'undefined') {
         document.getElementById('gpx-input').addEventListener('change', function(e) {
             let file = e.target.files[0];
             if (!file) return;
             gpxLayer.clearLayers();
             let gpxData = omnivore.gpx(file, null, L.geoJSON({
-                style: { color: 'red', weight: 4, opacity: 0.8 },
-                pointToLayer: function (feature, latlng) {
-                    return L.circleMarker(latlng, { radius: 4, fillColor: 'red', color: '#000', weight: 1, fillOpacity: 1 });
-                }
+                style: { color: '#f0a500', weight: 3, opacity: 0.9 },
+                pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+                    radius: 4, fillColor: '#f0a500', color: '#fff', weight: 1.5, fillOpacity: 1
+                })
             })).on('ready', function() {
-                map.fitBounds(gpxData.getBounds(), { padding: [50,50] });
+                map.fitBounds(gpxData.getBounds(), { padding: [50, 50] });
                 gpxData.addTo(gpxLayer);
                 alert("Traccia GPX caricata!");
-            }).on('error', function() { alert("Errore GPX."); });
+            }).on('error', () => alert("Errore GPX."));
             this.value = '';
         });
     }
 
+    // ── 5. ROTTA MANUALE ────────────────────────────────────
     let isDrawingRoute = false;
-    let routePoints = [];
-    let routeLine = null;
-    let routeMarkers = L.layerGroup().addTo(map);
+    let routePoints    = [];
+    let routeLine      = null;
+    let routeMarkers   = L.layerGroup().addTo(map);
 
     function toggleDrawRoute() {
         isDrawingRoute = !isDrawingRoute;
@@ -305,31 +830,37 @@
     map.on('click', function(e) {
         if (!isDrawingRoute) return;
         routePoints.push(e.latlng);
-        L.circleMarker(e.latlng, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers);
+        L.circleMarker(e.latlng, {
+            radius: 5, color: '#ffffff', fillColor: '#00d4ff', weight: 2, fillOpacity: 1
+        }).addTo(routeMarkers);
         if (routeLine) map.removeLayer(routeLine);
-        routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
+        routeLine = L.polyline(routePoints, {
+            color: '#00d4ff', weight: 2.5, dashArray: '8, 10', opacity: 0.9
+        }).addTo(routeMarkers);
     });
 
     function calculateRouteDistance() {
-        let totalDistanceMeters = 0;
+        let totalMeters = 0;
         for (let i = 0; i < routePoints.length - 1; i++) {
-            totalDistanceMeters += routePoints[i].distanceTo(routePoints[i + 1]);
+            totalMeters += routePoints[i].distanceTo(routePoints[i + 1]);
         }
-        let totalNM = (totalDistanceMeters / 1852).toFixed(2);
+        const totalNM = (totalMeters / 1852).toFixed(2);
         const midPoint = routePoints[Math.floor(routePoints.length / 2)];
-        L.popup().setLatLng(midPoint).setContent(`<b>Rotta Completata</b><br>Distanza_totale: <span style="color:#0077b6; font-size:16px;">${totalNM} NM</span>`).openOn(map);
+        L.popup().setLatLng(midPoint).setContent(
+            `<b style="font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1px;color:#00d4ff;">ROTTA COMPLETATA</b>
+             <br><span style="font-family:'Share Tech Mono',monospace;font-size:22px;color:#f0a500;">${totalNM} NM</span>
+             <br><span style="font-size:11px;color:#a8e6f0;">Distanza totale</span>`
+        ).openOn(map);
     }
 
     function saveRouteToFile() {
         if (routePoints.length === 0) { alert("Nessuna rotta disegnata!"); return; }
         const dataStr = JSON.stringify(routePoints.map(p => [p.lat, p.lng]));
-        const blob = new Blob([dataStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "rotta_nautica.json";
-        document.body.appendChild(a);
-        a.click();
+        const blob    = new Blob([dataStr], { type: "application/json" });
+        const url     = URL.createObjectURL(blob);
+        const a       = document.createElement("a");
+        a.href = url; a.download = "rotta_nautica.json";
+        document.body.appendChild(a); a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
@@ -344,59 +875,101 @@
                 routeMarkers.clearLayers();
                 if (routeLine) map.removeLayer(routeLine);
                 routePoints = coords.map(c => L.latLng(c[0], c[1]));
-                routePoints.forEach(p => L.circleMarker(p, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers));
-                routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
-                map.fitBounds(routeLine.getBounds(), { padding: [50,50] });
+                routePoints.forEach(p => L.circleMarker(p, {
+                    radius: 5, color: '#ffffff', fillColor: '#00d4ff', weight: 2, fillOpacity: 1
+                }).addTo(routeMarkers));
+                routeLine = L.polyline(routePoints, {
+                    color: '#00d4ff', weight: 2.5, dashArray: '8, 10', opacity: 0.9
+                }).addTo(routeMarkers);
+                map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
                 calculateRouteDistance();
-            } catch (err) { alert("File non valido."); }
-        }
+            } catch { alert("File non valido."); }
+        };
         reader.readAsText(file);
         this.value = '';
     });
 
+    // ── 6. PANNELLO CORRENTI ─────────────────────────────────
     function toggleCurrentPanel() {
         const panel = document.getElementById('current-panel');
         panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
     }
 
     function calcCurrent() {
-        const COG = parseFloat(document.getElementById('inp-cog').value); 
-        const STW = parseFloat(document.getElementById('inp-stw').value); 
-        const Set = parseFloat(document.getElementById('inp-set').value); 
-        const Drift = parseFloat(document.getElementById('inp-drift').value); 
-        const toRad = Math.PI / 180;
-        const toDeg = 180 / Math.PI;
+        const COG   = parseFloat(document.getElementById('inp-cog').value);
+        const STW   = parseFloat(document.getElementById('inp-stw').value);
+        const Set   = parseFloat(document.getElementById('inp-set').value);
+        const Drift = parseFloat(document.getElementById('inp-drift').value);
+        const toRad = Math.PI / 180, toDeg = 180 / Math.PI;
+
         const Vwx = (STW * Math.sin(COG * toRad)) - (Drift * Math.sin(Set * toRad));
         const Vwy = (STW * Math.cos(COG * toRad)) - (Drift * Math.cos(Set * toRad));
-        let CTW = Math.atan2(Vwx, Vwy) * toDeg;
+        let CTW    = Math.atan2(Vwx, Vwy) * toDeg;
         if (CTW < 0) CTW += 360;
-        const SOG = Math.sqrt((Vwx * Vwx) + (Vwy * Vwy));
+        const SOG  = Math.sqrt(Vwx * Vwx + Vwy * Vwy);
+
         const resDiv = document.getElementById('current-result');
+        document.getElementById('res-heading').textContent = `⟶ ${CTW.toFixed(1)}°  Rotta Timone`;
+        document.getElementById('res-sog').textContent     = `⏱ ${SOG.toFixed(2)} Nd  Vel. Fondale`;
         resDiv.style.display = 'block';
-        resDiv.innerHTML = `<b style="color:#023e8a;">Risultato Navigazione:</b><br><span style="font-size:18px; color:#d00;">⟶ ${CTW.toFixed(1)}°</span> (Rotta Timone)<br><span style="font-size:18px; color:#0077b6;">⏱ ${SOG.toFixed(2)} Nd</span> (Velocità Fondale)`;
     }
 
+    // ── 7. WAYPOINT (TASTO DESTRO) ───────────────────────────
     let waypointGroup = L.layerGroup().addTo(map);
+
     map.on('contextmenu', function(e) {
         e.originalEvent.preventDefault();
-        const icon = L.divIcon({ className: '', html: '<div style="background:#d00; width:14px; height:14px; border:2px solid white; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5);"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
-        const waypoint = L.marker(e.latlng, { draggable: true, icon: icon }).addTo(waypointGroup);
-        const updatePopup = (ll) => waypoint.bindPopup(`<b>Waypoint</b><br>LAT: ${ll.lat.toFixed(5)}<br>LON: ${ll.lng.toFixed(5)}<br><small style="color:#888;">Trascina per spostare</small>`).openPopup();
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="
+                background: #f0a500;
+                width: 12px; height: 12px;
+                border: 2px solid #fff;
+                border-radius: 50%;
+                box-shadow: 0 0 8px rgba(240,165,0,0.7), 0 2px 4px rgba(0,0,0,0.5);
+            "></div>`,
+            iconSize: [12, 12], iconAnchor: [6, 6]
+        });
+        const wpt = L.marker(e.latlng, { draggable: true, icon }).addTo(waypointGroup);
+        const updatePopup = ll => wpt
+            .bindPopup(`
+                <span style="font-family:'Orbitron',monospace;font-size:10px;letter-spacing:1px;color:#f0a500;">WAYPOINT</span>
+                <br><span style="font-family:'Share Tech Mono',monospace;color:#00d4ff;">
+                LAT: ${ll.lat.toFixed(5)}<br>LON: ${ll.lng.toFixed(5)}</span>
+                <br><small style="color:#a8e6f0;font-size:10px;">Trascina per spostare</small>
+            `)
+            .openPopup();
         updatePopup(e.latlng);
-        waypoint.on('dragend', (ev) => updatePopup(ev.target.getLatLng()));
+        wpt.on('dragend', ev => updatePopup(ev.target.getLatLng()));
     });
 
-    function clearAllWaypoints() { if(confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers(); }
+    function clearAllWaypoints() {
+        if (confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers();
+    }
 
+    // ── 8. POSIZIONE GPS ─────────────────────────────────────
     let locationMarker = null, locationCircle = null;
+
     function getLocation() {
         if (locationMarker) { map.removeLayer(locationMarker); map.removeLayer(locationCircle); }
-        map.locate({setView: true, maxZoom: 15});
-        map.once('locationfound', (e) => {
-            locationCircle = L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1, weight: 1}).addTo(map);
-            locationMarker = L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
+        map.locate({ setView: true, maxZoom: 15 });
+        map.once('locationfound', e => {
+            locationCircle = L.circle(e.latlng, e.accuracy, {
+                color: '#00d4ff', fillColor: '#00d4ff', fillOpacity: 0.06, weight: 1
+            }).addTo(map);
+            locationMarker = L.marker(e.latlng).addTo(map)
+                .bindPopup('<span style="font-family:\'Orbitron\',monospace;font-size:10px;color:#00d4ff;">LA TUA POSIZIONE</span>')
+                .openPopup();
         });
         map.once('locationerror', () => alert("Impossibile trovare la posizione."));
+    }
+
+    // ── 9. LEGENDA TOGGLE ────────────────────────────────────
+    function toggleLegend(header) {
+        const body = header.nextElementSibling;
+        const chev = header.querySelector('.legend-chevron');
+        body.classList.toggle('open');
+        chev.textContent = body.classList.contains('open') ? '▴' : '▾';
     }
 </script>
 </body>
