@@ -3,34 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico Mediterraneo</title>
+    <title>Plotter Nautico (Versione Sicura)</title>
     
-    <!-- 1. CARICO PRIMA I FOGLI DI STILE (CSS) -->
+    <!-- STILI CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
-    
-    <!-- 2. CARICO POI TUTTI GLI SCRIPT JAVASCRIPT NELL'HEAD (Ordine Fondamentale!) -->
-    
-    <!-- Core di Leaflet -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Libreria Griglia (Deve venire DOPO Leaflet.js) -->
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
-    
-    <!-- Plugin Geocoder -->
-    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-    
-    <!-- Plugin Misurazioni -->
-    <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
-
-    <!-- Plugin GPX -->
-    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
 
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
+        /* Interfaccia Utente */
         .legend {
             position: absolute; bottom: 40px; right: 10px;
             background: white; padding: 0; border-radius: 8px;
@@ -136,214 +120,235 @@
     </div>
 </div>
 
-<!-- 3. SOLO ORA ESEGUO LA LOGICA (Dato che tutte le librerie sono già caricate) -->
+<!-- SCRIPT: Caricamento in ordine sicuro alla fine del body -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
+<script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
+<!-- Libreria Griglia -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
+
 <script>
-    // Inizializzazione Mappa
-    const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
-    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    // 1. MAPPA BASE (Nessuna dipendenza esterna oltre a Leaflet)
+    try {
+        const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    // Definizione Layer Base
-    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map); 
-    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
-    const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
+        // Layer Base
+        const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map);
+        const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
+        const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
 
-    // Definizione Overlay
-    const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', { opacity: 0.8 });
-    const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
-    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
+        // Overlay Base
+        const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', { opacity: 0.8 });
+        const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
+        const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
 
-    // GRIGLIA
-    const graticule = L.latlngGraticule({
-        showLabel: true,
-        color: '#000000',
-        weight: 1.5,
-        opacity: 0.5,
-        zoomInterval: [
-            {start: 2, end: 3, interval: 10},
-            {start: 4, end: 5, interval: 5},
-            {start: 6, end: 7, interval: 1},
-            {start: 8, end: 10, interval: 0.5}
-        ],
-        fontColor: '#333',
-        fontSize: 11
-    });
+        // Oggetto Overlays
+        let overlays = { 
+            "Batimetria": bathy, 
+            "Segnaletica Nautica": seaMarks, 
+            "Nomi Località": labels
+        };
 
-    // Menu Controlli
-    let baseLayers = { 
-        "Mappa Stradale": esriStreets, 
-        "Satellite Puro": esriSatellite,
-        "Satellite + Nomi": L.layerGroup([esriSatellite, esriHybrid])
-    };
-
-    let overlays = { 
-        "Griglia (Paralleli/Meridiani)": graticule, 
-        "Batimetria": bathy, 
-        "Segnaletica Nautica": seaMarks, 
-        "Nomi Località": labels
-    };
-
-    L.control.layers(baseLayers, overlays, { collapsed: false, position: 'topright' }).addTo(map);
-
-    // Altri Controlli
-    L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
-    L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
-    
-    map.on('mousemove', e => {
-        document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
-    });
-
-    // --- FUNZIONI UTILITY ---
-    let gpxLayer = L.layerGroup().addTo(map);
-    document.getElementById('gpx-input').addEventListener('change', function(e) {
-        let file = e.target.files[0];
-        if (!file) return;
-        gpxLayer.clearLayers();
-        let gpxData = omnivore.gpx(file, null, L.geoJSON({
-            style: { color: 'red', weight: 4, opacity: 0.8 },
-            pointToLayer: function (feature, latlng) {
-                return L.circleMarker(latlng, { radius: 4, fillColor: 'red', color: '#000', weight: 1, fillOpacity: 1 });
-            }
-        })).on('ready', function() {
-            map.fitBounds(gpxData.getBounds(), { padding: [50,50] });
-            gpxData.addTo(gpxLayer);
-            alert("Traccia GPX caricata con successo!");
-        }).on('error', function() {
-            alert("Errore nel leggere il file GPX.");
-        });
-        this.value = '';
-    });
-
-    let isDrawingRoute = false;
-    let routePoints = [];
-    let routeLine = null;
-    let routeMarkers = L.layerGroup().addTo(map);
-
-    function toggleDrawRoute() {
-        isDrawingRoute = !isDrawingRoute;
-        const btn = document.getElementById('draw-route-btn');
-        if (isDrawingRoute) {
-            btn.classList.add('active');
-            document.getElementById('map').style.cursor = 'crosshair';
-            routePoints = [];
-            routeMarkers.clearLayers();
-        } else {
-            btn.classList.remove('active');
-            document.getElementById('map').style.cursor = '';
-            if (routePoints.length >= 2) calculateRouteDistance();
-        }
-    }
-
-    map.on('click', function(e) {
-        if (!isDrawingRoute) return;
-        routePoints.push(e.latlng);
-        L.circleMarker(e.latlng, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers);
-        if (routeLine) map.removeLayer(routeLine);
-        routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
-    });
-
-    function calculateRouteDistance() {
-        let totalDistanceMeters = 0;
-        for (let i = 0; i < routePoints.length - 1; i++) {
-            totalDistanceMeters += routePoints[i].distanceTo(routePoints[i + 1]);
-        }
-        let totalNM = (totalDistanceMeters / 1852).toFixed(2);
-        const midPoint = routePoints[Math.floor(routePoints.length / 2)];
-        L.popup().setLatLng(midPoint)
-            .setContent(`<b>Rotta Completata</b><br>Distanza_totale: <span style="color:#0077b6; font-size:16px;">${totalNM} NM</span>`)
-            .openOn(map);
-    }
-
-    function saveRouteToFile() {
-        if (routePoints.length === 0) { alert("Nessuna rotta disegnata da salvare!"); return; }
-        const dataStr = JSON.stringify(routePoints.map(p => [p.lat, p.lng]));
-        const blob = new Blob([dataStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "rotta_nautica.json";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    document.getElementById('route-input').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(ev) {
+        // 2. GRIGLIA (Con controllo sicurezza se la libreria è caricata)
+        if (typeof L.latlngGraticule !== 'undefined') {
             try {
-                const coords = JSON.parse(ev.target.result);
-                routeMarkers.clearLayers();
-                if (routeLine) map.removeLayer(routeLine);
-                routePoints = coords.map(c => L.latLng(c[0], c[1]));
-                
-                routePoints.forEach(p => {
-                    L.circleMarker(p, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers);
+                const graticule = L.latlngGraticule({
+                    showLabel: true,
+                    color: '#000000',
+                    weight: 1.5,
+                    opacity: 0.5,
+                    zoomInterval: [
+                        {start: 2, end: 3, interval: 10},
+                        {start: 4, end: 5, interval: 5},
+                        {start: 6, end: 7, interval: 1},
+                        {start: 8, end: 10, interval: 0.5}
+                    ],
+                    fontColor: '#333',
+                    fontSize: 11
                 });
-                routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
-                map.fitBounds(routeLine.getBounds(), { padding: [50,50] });
-                calculateRouteDistance();
-            } catch (err) {
-                alert("File non valido.");
+                overlays["Griglia (Paralleli/Meridiani)"] = graticule;
+            } catch (e) {
+                console.error("Errore creazione griglia:", e);
+            }
+        } else {
+            console.warn("Libreria Griglia non caricata. Controlla la connessione.");
+        }
+
+        // 3. CONTROLLI
+        L.control.layers({ 
+            "Mappa Stradale": esriStreets, 
+            "Satellite Puro": esriSatellite,
+            "Satellite + Nomi": L.layerGroup([esriSatellite, esriHybrid])
+        }, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+
+        // Plugin Righello (Controllo sicurezza)
+        if (typeof L.control.polylineMeasure !== 'undefined') {
+            L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
+        }
+
+        // Plugin Geocoder (Controllo sicurezza)
+        if (typeof L.Control.Geocoder !== 'undefined') {
+            L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
+        }
+
+        // Mouse Coordinate
+        map.on('mousemove', e => {
+            document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
+        });
+
+        // 4. FUNZIONI (GPX, Disegno, ecc)
+        
+        // GPX
+        let gpxLayer = L.layerGroup().addTo(map);
+        if (typeof omnivore !== 'undefined') {
+            document.getElementById('gpx-input').addEventListener('change', function(e) {
+                let file = e.target.files[0];
+                if (!file) return;
+                gpxLayer.clearLayers();
+                let gpxData = omnivore.gpx(file, null, L.geoJSON({
+                    style: { color: 'red', weight: 4, opacity: 0.8 },
+                    pointToLayer: function (feature, latlng) {
+                        return L.circleMarker(latlng, { radius: 4, fillColor: 'red', color: '#000', weight: 1, fillOpacity: 1 });
+                    }
+                })).on('ready', function() {
+                    map.fitBounds(gpxData.getBounds(), { padding: [50,50] });
+                    gpxData.addTo(gpxLayer);
+                    alert("Traccia GPX caricata!");
+                }).on('error', function() {
+                    alert("Errore GPX.");
+                });
+                this.value = '';
+            });
+        }
+
+        // Disegno
+        let isDrawingRoute = false;
+        let routePoints = [];
+        let routeLine = null;
+        let routeMarkers = L.layerGroup().addTo(map);
+
+        function toggleDrawRoute() {
+            isDrawingRoute = !isDrawingRoute;
+            const btn = document.getElementById('draw-route-btn');
+            if (isDrawingRoute) {
+                btn.classList.add('active');
+                document.getElementById('map').style.cursor = 'crosshair';
+                routePoints = [];
+                routeMarkers.clearLayers();
+            } else {
+                btn.classList.remove('active');
+                document.getElementById('map').style.cursor = '';
+                if (routePoints.length >= 2) calculateRouteDistance();
             }
         }
-        reader.readAsText(file);
-        this.value = '';
-    });
 
-    function toggleCurrentPanel() {
-        const panel = document.getElementById('current-panel');
-        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-    }
-
-    function calcCurrent() {
-        const COG = parseFloat(document.getElementById('inp-cog').value); 
-        const STW = parseFloat(document.getElementById('inp-stw').value); 
-        const Set = parseFloat(document.getElementById('inp-set').value); 
-        const Drift = parseFloat(document.getElementById('inp-drift').value); 
-
-        const toRad = Math.PI / 180;
-        const toDeg = 180 / Math.PI;
-
-        const Vwx = (STW * Math.sin(COG * toRad)) - (Drift * Math.sin(Set * toRad));
-        const Vwy = (STW * Math.cos(COG * toRad)) - (Drift * Math.cos(Set * toRad));
-
-        let CTW = Math.atan2(Vwx, Vwy) * toDeg;
-        if (CTW < 0) CTW += 360;
-
-        const SOG = Math.sqrt((Vwx * Vwx) + (Vwy * Vwy));
-
-        const resDiv = document.getElementById('current-result');
-        resDiv.style.display = 'block';
-        resDiv.innerHTML = `
-            <b style="color:#023e8a;">Risultato Navigazione:</b><br>
-            <span style="font-size:18px; color:#d00;">⟶ ${CTW.toFixed(1)}°</span> (Rotta Timone)<br>
-            <span style="font-size:18px; color:#0077b6;">⏱ ${SOG.toFixed(2)} Nd</span> (Velocità Fondale)
-        `;
-    }
-
-    let waypointGroup = L.layerGroup().addTo(map);
-    map.on('contextmenu', function(e) {
-        e.originalEvent.preventDefault();
-        const icon = L.divIcon({ className: '', html: '<div style="background:#d00; width:14px; height:14px; border:2px solid white; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5);"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
-        const waypoint = L.marker(e.latlng, { draggable: true, icon: icon }).addTo(waypointGroup);
-        const updatePopup = (ll) => waypoint.bindPopup(`<b>Waypoint</b><br>LAT: ${ll.lat.toFixed(5)}<br>LON: ${ll.lng.toFixed(5)}<br><small style="color:#888;">Trascina per spostare</small>`).openPopup();
-        updatePopup(e.latlng);
-        waypoint.on('dragend', (ev) => updatePopup(ev.target.getLatLng()));
-    });
-
-    function clearAllWaypoints() { if(confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers(); }
-
-    let locationMarker = null, locationCircle = null;
-    function getLocation() {
-        if (locationMarker) { map.removeLayer(locationMarker); map.removeLayer(locationCircle); }
-        map.locate({setView: true, maxZoom: 15});
-        map.once('locationfound', (e) => {
-            locationCircle = L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1, weight: 1}).addTo(map);
-            locationMarker = L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
+        map.on('click', function(e) {
+            if (!isDrawingRoute) return;
+            routePoints.push(e.latlng);
+            L.circleMarker(e.latlng, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers);
+            if (routeLine) map.removeLayer(routeLine);
+            routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
         });
-        map.once('locationerror', () => alert("Impossibile trovare la posizione."));
+
+        function calculateRouteDistance() {
+            let totalDistanceMeters = 0;
+            for (let i = 0; i < routePoints.length - 1; i++) {
+                totalDistanceMeters += routePoints[i].distanceTo(routePoints[i + 1]);
+            }
+            let totalNM = (totalDistanceMeters / 1852).toFixed(2);
+            const midPoint = routePoints[Math.floor(routePoints.length / 2)];
+            L.popup().setLatLng(midPoint)
+                .setContent(`<b>Rotta Completata</b><br>Distanza_totale: <span style="color:#0077b6; font-size:16px;">${totalNM} NM</span>`)
+                .openOn(map);
+        }
+
+        function saveRouteToFile() {
+            if (routePoints.length === 0) { alert("Nessuna rotta disegnata!"); return; }
+            const dataStr = JSON.stringify(routePoints.map(p => [p.lat, p.lng]));
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "rotta_nautica.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        document.getElementById('route-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const coords = JSON.parse(ev.target.result);
+                    routeMarkers.clearLayers();
+                    if (routeLine) map.removeLayer(routeLine);
+                    routePoints = coords.map(c => L.latLng(c[0], c[1]));
+                    routePoints.forEach(p => L.circleMarker(p, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers));
+                    routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
+                    map.fitBounds(routeLine.getBounds(), { padding: [50,50] });
+                    calculateRouteDistance();
+                } catch (err) { alert("File non valido."); }
+            }
+            reader.readAsText(file);
+            this.value = '';
+        });
+
+        // Correnti
+        function toggleCurrentPanel() {
+            const panel = document.getElementById('current-panel');
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function calcCurrent() {
+            const COG = parseFloat(document.getElementById('inp-cog').value); 
+            const STW = parseFloat(document.getElementById('inp-stw').value); 
+            const Set = parseFloat(document.getElementById('inp-set').value); 
+            const Drift = parseFloat(document.getElementById('inp-drift').value); 
+            const toRad = Math.PI / 180;
+            const toDeg = 180 / Math.PI;
+            const Vwx = (STW * Math.sin(COG * toRad)) - (Drift * Math.sin(Set * toRad));
+            const Vwy = (STW * Math.cos(COG * toRad)) - (Drift * Math.cos(Set * toRad));
+            let CTW = Math.atan2(Vwx, Vwy) * toDeg;
+            if (CTW < 0) CTW += 360;
+            const SOG = Math.sqrt((Vwx * Vwx) + (Vwy * Vwy));
+            const resDiv = document.getElementById('current-result');
+            resDiv.style.display = 'block';
+            resDiv.innerHTML = `<b style="color:#023e8a;">Risultato Navigazione:</b><br><span style="font-size:18px; color:#d00;">⟶ ${CTW.toFixed(1)}°</span> (Rotta Timone)<br><span style="font-size:18px; color:#0077b6;">⏱ ${SOG.toFixed(2)} Nd</span> (Velocità Fondale)`;
+        }
+
+        // Waypoints
+        let waypointGroup = L.layerGroup().addTo(map);
+        map.on('contextmenu', function(e) {
+            e.originalEvent.preventDefault();
+            const icon = L.divIcon({ className: '', html: '<div style="background:#d00; width:14px; height:14px; border:2px solid white; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5);"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
+            const waypoint = L.marker(e.latlng, { draggable: true, icon: icon }).addTo(waypointGroup);
+            const updatePopup = (ll) => waypoint.bindPopup(`<b>Waypoint</b><br>LAT: ${ll.lat.toFixed(5)}<br>LON: ${ll.lng.toFixed(5)}<br><small style="color:#888;">Trascina per spostare</small>`).openPopup();
+            updatePopup(e.latlng);
+            waypoint.on('dragend', (ev) => updatePopup(ev.target.getLatLng()));
+        });
+
+        function clearAllWaypoints() { if(confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers(); }
+
+        // Geolocalizzazione
+        let locationMarker = null, locationCircle = null;
+        function getLocation() {
+            if (locationMarker) { map.removeLayer(locationMarker); map.removeLayer(locationCircle); }
+            map.locate({setView: true, maxZoom: 15});
+            map.once('locationfound', (e) => {
+                locationCircle = L.circle(e.latlng, e.accuracy, {color: '#0077b6', fillOpacity: 0.1, weight: 1}).addTo(map);
+                locationMarker = L.marker(e.latlng).addTo(map).bindPopup("La tua posizione").openPopup();
+            });
+            map.once('locationerror', () => alert("Impossibile trovare la posizione."));
+        }
+
+    } catch (error) {
+        alert("Errore critico nell'avvio della mappa: " + error.message);
+        console.error(error);
     }
 </script>
 </body>
