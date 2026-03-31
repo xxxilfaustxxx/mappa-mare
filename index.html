@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico (Griglia Manuale)</title>
+    <title>Plotter Nautico (Griglia con Etichette Visibili)</title>
     
     <!-- STILI CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -71,16 +71,19 @@
         .close-panel { position: absolute; top: 8px; right: 10px; cursor: pointer; font-size: 18px; color: #888; background: none; border: none; font-weight: bold;}
         .close-panel:hover { color: red; }
 
-        /* Stile per le etichette della griglia personalizzata */
+        /* ETICHETTE GRIGLIA MIGLIORATE */
         .graticule-label {
-            background: rgba(255, 255, 255, 0.7);
-            border: 1px solid #999;
-            color: #000;
-            font-size: 10px;
-            padding: 1px 3px;
-            border-radius: 3px;
+            background: #ffffff;
+            border: 2px solid #d00; /* Bordo rosso per contrasto */
+            color: #d00; /* Testo rosso */
+            font-size: 14px; /* Più grande */
             font-weight: bold;
+            padding: 2px 5px;
+            border-radius: 4px;
             white-space: nowrap;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-align: center;
+            line-height: 1;
         }
     </style>
 </head>
@@ -132,7 +135,7 @@
     </div>
 </div>
 
-<!-- SCRIPT (Solo quelli strettamente necessari, niente libreria griglia esterna) -->
+<!-- SCRIPT -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
@@ -153,72 +156,94 @@
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
     const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
 
-    // 2. GRIGLIA PERSONALIZZATA (FATTA A MANO - Nessun plugin esterno)
+    // 2. GRIGLIA PERSONALIZZATA MIGLIORATA
     const graticuleLayer = L.layerGroup();
     
     function drawCustomGraticule() {
         graticuleLayer.clearLayers();
         
-        // Se il layer non è attivo nel menu, non disegnare nulla per risparmiare risorse
         if (!map.hasLayer(graticuleLayer)) return;
 
         const bounds = map.getBounds();
         const zoom = map.getZoom();
         
-        // Decido l'intervallo in base allo zoom
+        // Intervallo più granulare per zoom alti (fino a 0.05 gradi)
         let step = 1;
-        if (zoom < 6) step = 5;
-        if (zoom < 4) step = 10;
-        if (zoom > 10) step = 0.5;
+        if (zoom >= 5) step = 0.5;
+        if (zoom >= 7) step = 0.2;
+        if (zoom >= 9) step = 0.1;
+        if (zoom >= 11) step = 0.05;
 
-        // Arrotonda ai limiti
-        const west = Math.floor(bounds.getWest() / step) * step;
-        const east = Math.ceil(bounds.getEast() / step) * step;
-        const south = Math.floor(bounds.getSouth() / step) * step;
-        const north = Math.ceil(bounds.getNorth() / step) * step;
+        // Calcolo limiti
+        const west = bounds.getWest();
+        const east = bounds.getEast();
+        const south = bounds.getSouth();
+        const north = bounds.getNorth();
 
-        // Disegna Paralleli (Latitudini - Linee Orizzontali)
-        for (let lat = south; lat <= north; lat += step) {
-            // Linea
-            L.polyline([[lat, west], [lat, east]], {color: '#333', weight: 1, opacity: 0.5, interactive: false}).addTo(graticuleLayer);
-            
-            // Etichetta (a sinistra)
-            const labelLat = L.marker([lat, west], {
+        // Calcolo griglia arrotondata
+        const startLat = Math.floor(south / step) * step;
+        const endLat = Math.ceil(north / step) * step;
+        const startLng = Math.floor(west / step) * step;
+        const endLng = Math.ceil(east / step) * step;
+
+        // Offset per evitare che le etichette vengano tagliate ai bordi
+        // Spostiamo le etichette del 2% verso l'interno
+        const offsetX = (east - west) * 0.02;
+        const offsetY = (north - south) * 0.02;
+
+        // Disegna Paralleli (Latitudini)
+        for (let lat = startLat; lat <= endLat; lat += step) {
+            // Arrotonda per evitare errori di calcolo float (es 45.00000001)
+            let latFixed = parseFloat(lat.toFixed(4));
+
+            // Linea (estesa un po' fuori vista per continuità)
+            L.polyline([[latFixed, west], [latFixed, east]], {
+                color: '#555', weight: 1, opacity: 0.4, interactive: false
+            }).addTo(graticuleLayer);
+
+            // Etichetta Lat (a sinistra, ma con offset interno)
+            const labelLat = L.marker([latFixed, west + offsetX], {
                 icon: L.divIcon({
                     className: 'graticule-label-container',
-                    html: `<div class="graticule-label">${lat.toFixed(step < 1 ? 1 : 0)}°</div>`,
-                    iconSize: [30, 15],
-                    iconAnchor: [0, 7] // Ancora a sinistra
+                    html: `<div class="graticule-label">${latFixed.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
+                    iconSize: [40, 20],
+                    iconAnchor: [5, 10] // Ancorata a sinistra-centro
                 }),
-                interactive: false
+                interactive: false,
+                zIndexOffset: 1000 // Sopra tutto
             }).addTo(graticuleLayer);
         }
 
-        // Disegna Meridiani (Longitudini - Linee Verticali)
-        for (let lng = west; lng <= east; lng += step) {
+        // Disegna Meridiani (Longitudini)
+        for (let lng = startLng; lng <= endLng; lng += step) {
+            let lngFixed = parseFloat(lng.toFixed(4));
+
             // Linea
-            L.polyline([[south, lng], [north, lng]], {color: '#333', weight: 1, opacity: 0.5, interactive: false}).addTo(graticuleLayer);
-            
-            // Etichetta (in basso)
-            const labelLng = L.marker([south, lng], {
+            L.polyline([[south, lngFixed], [north, lngFixed]], {
+                color: '#555', weight: 1, opacity: 0.4, interactive: false
+            }).addTo(graticuleLayer);
+
+            // Etichetta Lng (in basso, ma con offset interno)
+            const labelLng = L.marker([south + offsetY, lngFixed], {
                 icon: L.divIcon({
                     className: 'graticule-label-container',
-                    html: `<div class="graticule-label">${lng.toFixed(step < 1 ? 1 : 0)}°</div>`,
-                    iconSize: [30, 15],
-                    iconAnchor: [15, 15] // Ancora in basso al centro
+                    html: `<div class="graticule-label">${lngFixed.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
+                    iconSize: [40, 20],
+                    iconAnchor: [20, 20] // Ancorata in basso-al centro
                 }),
-                interactive: false
+                interactive: false,
+                zIndexOffset: 1000 // Sopra tutto
             }).addTo(graticuleLayer);
         }
     }
 
-    // Ridisegna la griglia quando muovi la mappa o zoomi
+    // Ridisegna su spostamento e zoom
     map.on('moveend', drawCustomGraticule);
     map.on('zoomend', drawCustomGraticule);
 
     // Oggetto Overlays
     let overlays = { 
-        "Griglia (Paralleli/Meridiani)": graticuleLayer, // AGGIUNTA LA GRIGLIA QUI
+        "Griglia (Paralleli/Meridiani)": graticuleLayer, 
         "Batimetria": bathy, 
         "Segnaletica Nautica": seaMarks, 
         "Nomi Località": labels
