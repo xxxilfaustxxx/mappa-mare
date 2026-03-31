@@ -5,20 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plotter Nautico Mediterraneo</title>
     
+    <!-- CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
     
-    <!-- Libreria per leggere i file GPX -->
+    <!-- Script necessari nell'head -->
     <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
-    
-    <!-- CORREZIONE 1: Carico la libreria della griglia subito nell'head -->
+    <!-- Libreria Griglia (caricata qui per sicurezza) -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
 
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
+        /* Stili interfaccia */
         .legend {
             position: absolute; bottom: 40px; right: 10px;
             background: white; padding: 0; border-radius: 8px;
@@ -57,10 +58,8 @@
         .tool-btn.active { background: #0077b6; color: white; }
         .polyline-measure-control { margin-top: 100px !important; }
         
-        /* Nascondo gli input file */
         #gpx-input, #route-input { display: none; }
 
-        /* Pannello Calcolo Correnti */
         .current-panel {
             position: absolute; top: 120px; left: 60px;
             background: white; padding: 15px; border-radius: 8px;
@@ -126,63 +125,69 @@
     </div>
 </div>
 
+<!-- Script JS Principali -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
 
 <script>
+    // 1. Inizializzazione Mappa
     const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    // --- MAPPE DI BASE ---
-    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map);
+    // 2. Definizione Layer Base
+    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map); // ATTENZIONE: .addTo(map) è fondamentale qui!
     const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
     const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
 
-    // --- OVERLAYS ---
+    // 3. Definizione Overlay (Opzionali)
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', { opacity: 0.8 });
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
-    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png').addTo(map);
+    const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
 
-    // CORREZIONE 2: Definisco la griglia qui, sicuro che la libreria è caricata
+    // 4. Griglia (Paralleli e Meridiani)
     const graticule = L.latlngGraticule({
         showLabel: true,
-        color: '#555',      // Colore delle linee (grigio scuro per visibilità)
-        weight: 1,          // Spessore linee
-        opacity: 0.5,       // Trasparenza
+        color: '#000',      // Nero per contrasto
+        weight: 1.5,        // Leggermente più spesso
+        opacity: 0.6,       // Visibile ma non invadente
         zoomInterval: [
             {start: 2, end: 3, interval: 10},
             {start: 4, end: 5, interval: 5},
             {start: 6, end: 7, interval: 1},
             {start: 8, end: 10, interval: 0.5}
         ],
-        fontColor: '#000',
-        fontSize: 10
+        fontColor: '#333',
+        fontSize: 11
     });
 
-    // CORREZIONE 3: Aggiungo la griglia all'oggetto overlays PRIMA di creare il controllo
-    let overlays = { 
-        "Batimetria": bathy, 
-        "Segnaletica Nautica": seaMarks, 
-        "Nomi Località": labels,
-        "Griglia (Paralleli/Meridiani)": graticule
-    };
-
-    // CREO IL MENU A DESTRA (Ora include la griglia)
-    L.control.layers({ 
+    // 5. Creazione Menu Controlli
+    let baseLayers = { 
         "Mappa Stradale": esriStreets, 
         "Satellite Puro": esriSatellite,
         "Satellite + Nomi": L.layerGroup([esriSatellite, esriHybrid])
-    }, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+    };
 
-    // RIGHELLO NAUTICO
+    let overlays = { 
+        "Griglia (Paralleli/Meridiani)": graticule, // La griglia è qui
+        "Batimetria": bathy, 
+        "Segnaletica Nautica": seaMarks, 
+        "Nomi Località": labels
+    };
+
+    L.control.layers(baseLayers, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+
+    // 6. Altri Controlli
     L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
-
-    // COORDINATE E RICERCA
     L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
-    map.on('mousemove', e => document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`);
+    
+    map.on('mousemove', e => {
+        document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
+    });
 
-    // --- FUNZIONE 1: IMPORTA GPX ---
+    // --- FUNZIONI UTILITY ---
+    
+    // GPX Import
     let gpxLayer = L.layerGroup().addTo(map);
     document.getElementById('gpx-input').addEventListener('change', function(e) {
         let file = e.target.files[0];
@@ -203,7 +208,7 @@
         this.value = '';
     });
 
-    // --- FUNZIONE 2: DISEGNA ROTTA MANUALE ---
+    // Disegno Rotta
     let isDrawingRoute = false;
     let routePoints = [];
     let routeLine = null;
@@ -244,7 +249,7 @@
             .openOn(map);
     }
 
-    // --- FUNZIONE 3: SALVATAGGIO E CARICAMENTO ROTTA LOCALE ---
+    // Save/Load Route
     function saveRouteToFile() {
         if (routePoints.length === 0) { alert("Nessuna rotta disegnata da salvare!"); return; }
         const dataStr = JSON.stringify(routePoints.map(p => [p.lat, p.lng]));
@@ -277,14 +282,14 @@
                 map.fitBounds(routeLine.getBounds(), { padding: [50,50] });
                 calculateRouteDistance();
             } catch (err) {
-                alert("File non valido. Assicurati di caricare un file .json esportato da questo plotter.");
+                alert("File non valido.");
             }
         }
         reader.readAsText(file);
         this.value = '';
     });
 
-    // --- FUNZIONE 4: CALCOLO CORRENTI ---
+    // Calcolo Correnti
     function toggleCurrentPanel() {
         const panel = document.getElementById('current-panel');
         panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
@@ -316,7 +321,7 @@
         `;
     }
 
-    // --- GESTIONE WAYPOINTS (Tasto destro) ---
+    // Waypoints
     let waypointGroup = L.layerGroup().addTo(map);
     map.on('contextmenu', function(e) {
         e.originalEvent.preventDefault();
@@ -329,7 +334,7 @@
 
     function clearAllWaypoints() { if(confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers(); }
 
-    // --- GEOLOCALIZZAZIONE ---
+    // Geolocalizzazione
     let locationMarker = null, locationCircle = null;
     function getLocation() {
         if (locationMarker) { map.removeLayer(locationMarker); map.removeLayer(locationCircle); }
