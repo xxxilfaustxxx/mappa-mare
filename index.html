@@ -8,8 +8,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
+    
     <!-- Libreria per leggere i file GPX -->
     <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
+    <!-- Libreria per la Griglia (Meridiane e Parallele) -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
     
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
@@ -39,7 +42,7 @@
         }
 
         .side-tools {
-            position: absolute; top: 180px; left: 10px;
+            position: absolute; top: 120px; left: 10px;
             z-index: 1000; display: flex; flex-direction: column; gap: 6px;
         }
         .tool-btn {
@@ -50,12 +53,28 @@
             transition: all 0.2s;
         }
         .tool-btn:hover { background: #e6f2ff; color: #0077b6; transform: scale(1.1); }
-        .tool-btn.active { background: #0077b6; color: white; } /* Classe per bottone attivo */
-
+        .tool-btn.active { background: #0077b6; color: white; }
         .polyline-measure-control { margin-top: 100px !important; }
         
-        /* Nascondo l'input file */
-        #gpx-input { display: none; }
+        /* Nascondo gli input file */
+        #gpx-input, #route-input { display: none; }
+
+        /* Pannello Calcolo Correnti */
+        .current-panel {
+            position: absolute; top: 120px; left: 60px;
+            background: white; padding: 15px; border-radius: 8px;
+            z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 260px; border-top: 5px solid #023e8a;
+            display: none;
+        }
+        .current-panel h4 { margin: 0 0 10px 0; color: #023e8a; font-size: 15px; }
+        .current-panel label { display: block; font-size: 12px; margin-bottom: 10px; color: #333; }
+        .current-panel input { width: 100%; padding: 4px; box-sizing: border-box; margin-top: 3px; border: 1px solid #ccc; border-radius: 3px;}
+        .calc-btn { background: #0077b6; color: white; border: none; padding: 8px; width: 100%; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .calc-btn:hover { background: #005f8a; }
+        .calc-result { margin-top: 10px; padding: 8px; background: #e8f4fd; border-radius: 4px; font-size: 13px; display: none; }
+        .close-panel { position: absolute; top: 8px; right: 10px; cursor: pointer; font-size: 18px; color: #888; background: none; border: none; font-weight: bold;}
+        .close-panel:hover { color: red; }
     </style>
 </head>
 <body>
@@ -68,8 +87,25 @@
     <input type="file" id="gpx-input" accept=".gpx">
     
     <div class="tool-btn" id="draw-route-btn" onclick="toggleDrawRoute()" title="Disegna una rotta manuale">✏️</div>
+    <div class="tool-btn" onclick="saveRouteToFile()" title="Salva rotta sul PC">💾</div>
+    <div class="tool-btn" onclick="document.getElementById('route-input').click()" title="Carica rotta salvata">📥</div>
+    <input type="file" id="route-input" accept=".json">
+
+    <div class="tool-btn" onclick="toggleCurrentPanel()" title="Calcolo Correnti">🌊</div>
     <div class="tool-btn" onclick="getLocation()" title="La mia posizione esatta">📍</div>
     <div class="tool-btn" onclick="clearAllWaypoints()" title="Cancella tutti i Waypoint" style="color:red;">🗑️</div>
+</div>
+
+<!-- Pannello Correnti -->
+<div id="current-panel" class="current-panel">
+    <button class="close-panel" onclick="toggleCurrentPanel()">×</button>
+    <h4>Calcolo Correnti</h4>
+    <label>Rotta Vera Desiderata (°): <input type="number" id="inp-cog" value="45"></label>
+    <label>Velocità Barca (Nodi): <input type="number" id="inp-stw" value="6" step="0.1"></label>
+    <label>Direzione Corrente - Set (°): <input type="number" id="inp-set" value="180"></label>
+    <label>Velocità Corrente - Drift (Nodi): <input type="number" id="inp-drift" value="1" step="0.1"></label>
+    <button class="calc-btn" onclick="calcCurrent()">Calcola Rotta Timone</button>
+    <div id="current-result" class="calc-result"></div>
 </div>
 
 <div class="legend">
@@ -107,7 +143,22 @@
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
     const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // Menu Controllo
+    // --- GRIGLIA MERIDIANE E PARALLELE ---
+    const graticule = L.latlngGraticule({
+        showLabel: true,
+        color: 'rgba(0, 0, 100, 0.2)',
+        weight: 1,
+        zoomInterval: [
+            {start: 2, end: 3, interval: 10},
+            {start: 4, end: 5, interval: 5},
+            {start: 6, end: 7, interval: 1},
+            {start: 8, end: 10, interval: 0.5}
+        ],
+        fontColor: 'rgba(0, 50, 100, 0.8)',
+        fontSize: 10
+    });
+
+    // Menu Controllo (Aggiunta griglia)
     L.control.layers({ 
         "Mappa Stradale": esriStreets, 
         "Satellite Puro": esriSatellite,
@@ -115,7 +166,8 @@
     }, { 
         "Batimetria": bathy, 
         "Segnaletica Nautica": seaMarks, 
-        "Nomi Località": labels 
+        "Nomi Località": labels,
+        "Griglia Gradi": graticule  // <--- NUOVO LIVELLO
     }, { collapsed: false, position: 'topright' }).addTo(map);
 
     // RIGHELLO NAUTICO
@@ -130,11 +182,7 @@
     document.getElementById('gpx-input').addEventListener('change', function(e) {
         let file = e.target.files[0];
         if (!file) return;
-        
-        // Pulisce la traccia precedente se esiste
         gpxLayer.clearLayers();
-        
-        // Carica il file GPX
         let gpxData = omnivore.gpx(file, null, L.geoJSON({
             style: { color: 'red', weight: 4, opacity: 0.8 },
             pointToLayer: function (feature, latlng) {
@@ -145,10 +193,8 @@
             gpxData.addTo(gpxLayer);
             alert("Traccia GPX caricata con successo!");
         }).on('error', function() {
-            alert("Errore nel leggere il file GPX. Assicurati che il file sia valido.");
+            alert("Errore nel leggere il file GPX.");
         });
-        
-        // Resetta l'input per permettere di ricaricare lo stesso file
         this.value = '';
     });
 
@@ -161,7 +207,6 @@
     function toggleDrawRoute() {
         isDrawingRoute = !isDrawingRoute;
         const btn = document.getElementById('draw-route-btn');
-        
         if (isDrawingRoute) {
             btn.classList.add('active');
             document.getElementById('map').style.cursor = 'crosshair';
@@ -170,20 +215,14 @@
         } else {
             btn.classList.remove('active');
             document.getElementById('map').style.cursor = '';
-            // Calcola distanza finale se ci sono almeno 2 punti
             if (routePoints.length >= 2) calculateRouteDistance();
         }
     }
 
     map.on('click', function(e) {
         if (!isDrawingRoute) return;
-
         routePoints.push(e.latlng);
-        
-        // Aggiunge il pallino della rotta
         L.circleMarker(e.latlng, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers);
-        
-        // Disegna la linea aggiornata
         if (routeLine) map.removeLayer(routeLine);
         routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
     });
@@ -194,15 +233,95 @@
             totalDistanceMeters += routePoints[i].distanceTo(routePoints[i + 1]);
         }
         let totalNM = (totalDistanceMeters / 1852).toFixed(2);
-        
-        // Mostra popup a metà strada con la distanza
         const midPoint = routePoints[Math.floor(routePoints.length / 2)];
         L.popup().setLatLng(midPoint)
             .setContent(`<b>Rotta Completata</b><br>Distanza_totale: <span style="color:#0077b6; font-size:16px;">${totalNM} NM</span>`)
             .openOn(map);
     }
 
-    // --- GESTIONE WAYPOINTS (Tasto destro - invariato) ---
+    // --- FUNZIONE 3: SALVATAGGIO E CARICAMENTO ROTTA LOCALE ---
+    function saveRouteToFile() {
+        if (routePoints.length === 0) { alert("Nessuna rotta disegnata da salvare!"); return; }
+        // Converte l'array di oggetti Leaflet in un semplice array di coordinate [lat, lon]
+        const dataStr = JSON.stringify(routePoints.map(p => [p.lat, p.lng]));
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "rotta_nautica.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('route-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            try {
+                const coords = JSON.parse(ev.target.result);
+                // Pulisci mappa e ricrea rotta
+                routeMarkers.clearLayers();
+                if (routeLine) map.removeLayer(routeLine);
+                routePoints = coords.map(c => L.latLng(c[0], c[1]));
+                
+                routePoints.forEach(p => {
+                    L.circleMarker(p, { radius: 5, color: '#fff', fillColor: '#0077b6', weight: 2, fillOpacity: 1 }).addTo(routeMarkers);
+                });
+                routeLine = L.polyline(routePoints, { color: '#0077b6', weight: 3, dashArray: '5, 10' }).addTo(routeMarkers);
+                map.fitBounds(routeLine.getBounds(), { padding: [50,50] });
+                calculateRouteDistance();
+            } catch (err) {
+                alert("File non valido. Assicurati di caricare un file .json esportato da questo plotter.");
+            }
+        }
+        reader.readAsText(file);
+        this.value = '';
+    });
+
+    // --- FUNZIONE 4: CALCOLO CORRENTI ---
+    function toggleCurrentPanel() {
+        const panel = document.getElementById('current-panel');
+        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function calcCurrent() {
+        // Prendo i valori dal pannello
+        const COG = parseFloat(document.getElementById('inp-cog').value); // Rotta Vera
+        const STW = parseFloat(document.getElementById('inp-stw').value); // Velocità barca
+        const Set = parseFloat(document.getElementById('inp-set').value); // Direzione corrente
+        const Drift = parseFloat(document.getElementById('inp-drift').value); // Velocità corrente
+
+        // Converto in radianti per i calcoli trigonometrici
+        const toRad = Math.PI / 180;
+        const toDeg = 180 / Math.PI;
+
+        // Componenti vettoriali (Asse Y = Nord, Asse X = Est)
+        // Vettore risultante sul fondo = Vettore Barca - Vettore Corrente
+        // Poiché vogliamo arrivare a COG, calcoliamo il vettore che la barca deve fare per contrastare la corrente
+        const Vwx = (STW * Math.sin(COG * toRad)) - (Drift * Math.sin(Set * toRad));
+        const Vwy = (STW * Math.cos(COG * toRad)) - (Drift * Math.cos(Set * toRad));
+
+        // Rotta da tenere al timone (CTW)
+        let CTW = Math.atan2(Vwx, Vwy) * toDeg;
+        if (CTW < 0) CTW += 360;
+
+        // Velocità effettiva sul fondo (SOG)
+        const SOG = Math.sqrt((Vwx * Vwx) + (Vwy * Vwy));
+
+        // Mostra risultati
+        const resDiv = document.getElementById('current-result');
+        resDiv.style.display = 'block';
+        resDiv.innerHTML = `
+            <b style="color:#023e8a;">Risultato Navigazione:</b><br>
+            <span style="font-size:18px; color:#d00;">⟶ ${CTW.toFixed(1)}°</span> (Rotta Timone)<br>
+            <span style="font-size:18px; color:#0077b6;">⏱ ${SOG.toFixed(2)} Nd</span> (Velocità Fondale)
+        `;
+    }
+
+    // --- GESTIONE WAYPOINTS (Tasto destro) ---
     let waypointGroup = L.layerGroup().addTo(map);
     map.on('contextmenu', function(e) {
         e.originalEvent.preventDefault();
