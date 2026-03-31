@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Nautico (Griglia con Etichette Visibili)</title>
+    <title>Plotter Nautico (Griglia Stile Professionale)</title>
     
     <!-- STILI CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -71,17 +71,17 @@
         .close-panel { position: absolute; top: 8px; right: 10px; cursor: pointer; font-size: 18px; color: #888; background: none; border: none; font-weight: bold;}
         .close-panel:hover { color: red; }
 
-        /* ETICHETTE GRIGLIA MIGLIORATE */
+        /* ETICHETTE GRIGLIA STILE PROFESSIONALE (Nero/Grigio) */
         .graticule-label {
-            background: #ffffff;
-            border: 2px solid #d00; /* Bordo rosso per contrasto */
-            color: #d00; /* Testo rosso */
-            font-size: 14px; /* Più grande */
-            font-weight: bold;
-            padding: 2px 5px;
-            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.85); /* Bianco semi-trasparente */
+            border: 1px solid #666; /* Bordo grigio scuro sottile */
+            color: #000000; /* Testo nero opaco */
+            font-size: 13px;
+            font-weight: 500; /* Grassetto medio */
+            padding: 2px 4px;
+            border-radius: 3px;
             white-space: nowrap;
-            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.2); /* Ombra leggera */
             text-align: center;
             line-height: 1;
         }
@@ -156,7 +156,7 @@
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
     const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
 
-    // 2. GRIGLIA PERSONALIZZATA MIGLIORATA
+    // 2. GRIGLIA PERSONALIZZATA
     const graticuleLayer = L.layerGroup();
     
     function drawCustomGraticule() {
@@ -167,7 +167,7 @@
         const bounds = map.getBounds();
         const zoom = map.getZoom();
         
-        // Intervallo più granulare per zoom alti (fino a 0.05 gradi)
+        // Intervallo
         let step = 1;
         if (zoom >= 5) step = 0.5;
         if (zoom >= 7) step = 0.2;
@@ -180,37 +180,32 @@
         const south = bounds.getSouth();
         const north = bounds.getNorth();
 
-        // Calcolo griglia arrotondata
         const startLat = Math.floor(south / step) * step;
         const endLat = Math.ceil(north / step) * step;
         const startLng = Math.floor(west / step) * step;
         const endLng = Math.ceil(east / step) * step;
 
-        // Offset per evitare che le etichette vengano tagliate ai bordi
-        // Spostiamo le etichette del 2% verso l'interno
+        // Offset per evitare tagli ai bordi
         const offsetX = (east - west) * 0.02;
         const offsetY = (north - south) * 0.02;
 
         // Disegna Paralleli (Latitudini)
         for (let lat = startLat; lat <= endLat; lat += step) {
-            // Arrotonda per evitare errori di calcolo float (es 45.00000001)
             let latFixed = parseFloat(lat.toFixed(4));
 
-            // Linea (estesa un po' fuori vista per continuità)
             L.polyline([[latFixed, west], [latFixed, east]], {
                 color: '#555', weight: 1, opacity: 0.4, interactive: false
             }).addTo(graticuleLayer);
 
-            // Etichetta Lat (a sinistra, ma con offset interno)
             const labelLat = L.marker([latFixed, west + offsetX], {
                 icon: L.divIcon({
                     className: 'graticule-label-container',
                     html: `<div class="graticule-label">${latFixed.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
                     iconSize: [40, 20],
-                    iconAnchor: [5, 10] // Ancorata a sinistra-centro
+                    iconAnchor: [5, 10]
                 }),
                 interactive: false,
-                zIndexOffset: 1000 // Sopra tutto
+                zIndexOffset: 1000
             }).addTo(graticuleLayer);
         }
 
@@ -218,26 +213,23 @@
         for (let lng = startLng; lng <= endLng; lng += step) {
             let lngFixed = parseFloat(lng.toFixed(4));
 
-            // Linea
             L.polyline([[south, lngFixed], [north, lngFixed]], {
                 color: '#555', weight: 1, opacity: 0.4, interactive: false
             }).addTo(graticuleLayer);
 
-            // Etichetta Lng (in basso, ma con offset interno)
             const labelLng = L.marker([south + offsetY, lngFixed], {
                 icon: L.divIcon({
                     className: 'graticule-label-container',
                     html: `<div class="graticule-label">${lngFixed.toFixed(step < 0.1 ? 2 : 1)}°</div>`,
                     iconSize: [40, 20],
-                    iconAnchor: [20, 20] // Ancorata in basso-al centro
+                    iconAnchor: [20, 20]
                 }),
                 interactive: false,
-                zIndexOffset: 1000 // Sopra tutto
+                zIndexOffset: 1000
             }).addTo(graticuleLayer);
         }
     }
 
-    // Ridisegna su spostamento e zoom
     map.on('moveend', drawCustomGraticule);
     map.on('zoomend', drawCustomGraticule);
 
@@ -256,24 +248,20 @@
         "Satellite + Nomi": L.layerGroup([esriSatellite, esriHybrid])
     }, overlays, { collapsed: false, position: 'topright' }).addTo(map);
 
-    // Plugin Righello
     if (typeof L.control.polylineMeasure !== 'undefined') {
         L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
     }
 
-    // Plugin Geocoder
     if (typeof L.Control.Geocoder !== 'undefined') {
         L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
     }
 
-    // Coordinate Mouse
     map.on('mousemove', e => {
         document.getElementById('coords').innerHTML = `LAT: ${e.latlng.lat.toFixed(5)} | LON: ${e.latlng.lng.toFixed(5)}`;
     });
 
     // 4. FUNZIONI UTILITY
     
-    // GPX
     let gpxLayer = L.layerGroup().addTo(map);
     if (typeof omnivore !== 'undefined') {
         document.getElementById('gpx-input').addEventListener('change', function(e) {
@@ -294,7 +282,6 @@
         });
     }
 
-    // Disegno Rotta
     let isDrawingRoute = false;
     let routePoints = [];
     let routeLine = null;
@@ -367,7 +354,6 @@
         this.value = '';
     });
 
-    // Correnti
     function toggleCurrentPanel() {
         const panel = document.getElementById('current-panel');
         panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
@@ -390,7 +376,6 @@
         resDiv.innerHTML = `<b style="color:#023e8a;">Risultato Navigazione:</b><br><span style="font-size:18px; color:#d00;">⟶ ${CTW.toFixed(1)}°</span> (Rotta Timone)<br><span style="font-size:18px; color:#0077b6;">⏱ ${SOG.toFixed(2)} Nd</span> (Velocità Fondale)`;
     }
 
-    // Waypoints
     let waypointGroup = L.layerGroup().addTo(map);
     map.on('contextmenu', function(e) {
         e.originalEvent.preventDefault();
@@ -403,7 +388,6 @@
 
     function clearAllWaypoints() { if(confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers(); }
 
-    // Geolocalizzazione
     let locationMarker = null, locationCircle = null;
     function getLocation() {
         if (locationMarker) { map.removeLayer(locationMarker); map.removeLayer(locationCircle); }
