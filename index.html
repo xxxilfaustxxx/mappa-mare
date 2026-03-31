@@ -5,21 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plotter Nautico Mediterraneo</title>
     
-    <!-- CSS -->
+    <!-- 1. CARICO PRIMA I FOGLI DI STILE (CSS) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
     
-    <!-- Script necessari nell'head -->
-    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
-    <!-- Libreria Griglia (caricata qui per sicurezza) -->
+    <!-- 2. CARICO POI TUTTI GLI SCRIPT JAVASCRIPT NELL'HEAD (Ordine Fondamentale!) -->
+    
+    <!-- Core di Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Libreria Griglia (Deve venire DOPO Leaflet.js) -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
+    
+    <!-- Plugin Geocoder -->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    
+    <!-- Plugin Misurazioni -->
+    <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
+
+    <!-- Plugin GPX -->
+    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
 
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         #map { width: 100%; height: 100vh; }
         
-        /* Stili interfaccia */
         .legend {
             position: absolute; bottom: 40px; right: 10px;
             background: white; padding: 0; border-radius: 8px;
@@ -125,32 +136,28 @@
     </div>
 </div>
 
-<!-- Script JS Principali -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-<script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
-
+<!-- 3. SOLO ORA ESEGUO LA LOGICA (Dato che tutte le librerie sono già caricate) -->
 <script>
-    // 1. Inizializzazione Mappa
+    // Inizializzazione Mappa
     const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    // 2. Definizione Layer Base
-    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map); // ATTENZIONE: .addTo(map) è fondamentale qui!
+    // Definizione Layer Base
+    const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }).addTo(map); 
     const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
     const esriHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
 
-    // 3. Definizione Overlay (Opzionali)
+    // Definizione Overlay
     const bathy = L.tileLayer('https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png', { opacity: 0.8 });
     const seaMarks = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png');
     const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
 
-    // 4. Griglia (Paralleli e Meridiani)
+    // GRIGLIA
     const graticule = L.latlngGraticule({
         showLabel: true,
-        color: '#000',      // Nero per contrasto
-        weight: 1.5,        // Leggermente più spesso
-        opacity: 0.6,       // Visibile ma non invadente
+        color: '#000000',
+        weight: 1.5,
+        opacity: 0.5,
         zoomInterval: [
             {start: 2, end: 3, interval: 10},
             {start: 4, end: 5, interval: 5},
@@ -161,7 +168,7 @@
         fontSize: 11
     });
 
-    // 5. Creazione Menu Controlli
+    // Menu Controlli
     let baseLayers = { 
         "Mappa Stradale": esriStreets, 
         "Satellite Puro": esriSatellite,
@@ -169,7 +176,7 @@
     };
 
     let overlays = { 
-        "Griglia (Paralleli/Meridiani)": graticule, // La griglia è qui
+        "Griglia (Paralleli/Meridiani)": graticule, 
         "Batimetria": bathy, 
         "Segnaletica Nautica": seaMarks, 
         "Nomi Località": labels
@@ -177,7 +184,7 @@
 
     L.control.layers(baseLayers, overlays, { collapsed: false, position: 'topright' }).addTo(map);
 
-    // 6. Altri Controlli
+    // Altri Controlli
     L.control.polylineMeasure({ position: 'topleft', unit: 'nauticalmiles', showBearings: true, bearingTextIn: 'Rotta: {bearing}°', clearControlTitle: 'Cancella misurazioni' }).addTo(map);
     L.Control.geocoder({ placeholder: "Cerca porto..." }).addTo(map);
     
@@ -186,8 +193,6 @@
     });
 
     // --- FUNZIONI UTILITY ---
-    
-    // GPX Import
     let gpxLayer = L.layerGroup().addTo(map);
     document.getElementById('gpx-input').addEventListener('change', function(e) {
         let file = e.target.files[0];
@@ -208,7 +213,6 @@
         this.value = '';
     });
 
-    // Disegno Rotta
     let isDrawingRoute = false;
     let routePoints = [];
     let routeLine = null;
@@ -249,7 +253,6 @@
             .openOn(map);
     }
 
-    // Save/Load Route
     function saveRouteToFile() {
         if (routePoints.length === 0) { alert("Nessuna rotta disegnata da salvare!"); return; }
         const dataStr = JSON.stringify(routePoints.map(p => [p.lat, p.lng]));
@@ -289,7 +292,6 @@
         this.value = '';
     });
 
-    // Calcolo Correnti
     function toggleCurrentPanel() {
         const panel = document.getElementById('current-panel');
         panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
@@ -321,7 +323,6 @@
         `;
     }
 
-    // Waypoints
     let waypointGroup = L.layerGroup().addTo(map);
     map.on('contextmenu', function(e) {
         e.originalEvent.preventDefault();
@@ -334,7 +335,6 @@
 
     function clearAllWaypoints() { if(confirm("Cancellare tutti i Waypoint?")) waypointGroup.clearLayers(); }
 
-    // Geolocalizzazione
     let locationMarker = null, locationCircle = null;
     function getLocation() {
         if (locationMarker) { map.removeLayer(locationMarker); map.removeLayer(locationCircle); }
