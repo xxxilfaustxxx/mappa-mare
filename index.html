@@ -11,8 +11,6 @@
     
     <!-- Libreria per leggere i file GPX -->
     <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js'></script>
-    <!-- Libreria per la Griglia (Meridiane e Parallele) -->
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
     
     <style>
         body { margin: 0; padding: 0; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
@@ -125,9 +123,12 @@
     </div>
 </div>
 
+<!-- CARICAMENTO LIBRERIE CORE (L'ORDINE È FONDAMENTALE) -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
+<!-- Libreria Griglia caricata DOPO Leaflet -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-latlng-graticule@0.1.6/dist/leaflet-latlng-graticule.min.js"></script>
 
 <script>
     const map = L.map('map', { maxZoom: 19, minZoom: 4, zoomControl: false }).setView([42.0, 14.0], 6);
@@ -167,7 +168,7 @@
         "Batimetria": bathy, 
         "Segnaletica Nautica": seaMarks, 
         "Nomi Località": labels,
-        "Griglia Gradi": graticule  // <--- NUOVO LIVELLO
+        "Griglia Gradi": graticule  
     }, { collapsed: false, position: 'topright' }).addTo(map);
 
     // RIGHELLO NAUTICO
@@ -242,7 +243,6 @@
     // --- FUNZIONE 3: SALVATAGGIO E CARICAMENTO ROTTA LOCALE ---
     function saveRouteToFile() {
         if (routePoints.length === 0) { alert("Nessuna rotta disegnata da salvare!"); return; }
-        // Converte l'array di oggetti Leaflet in un semplice array di coordinate [lat, lon]
         const dataStr = JSON.stringify(routePoints.map(p => [p.lat, p.lng]));
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -262,7 +262,6 @@
         reader.onload = function(ev) {
             try {
                 const coords = JSON.parse(ev.target.result);
-                // Pulisci mappa e ricrea rotta
                 routeMarkers.clearLayers();
                 if (routeLine) map.removeLayer(routeLine);
                 routePoints = coords.map(c => L.latLng(c[0], c[1]));
@@ -288,30 +287,22 @@
     }
 
     function calcCurrent() {
-        // Prendo i valori dal pannello
-        const COG = parseFloat(document.getElementById('inp-cog').value); // Rotta Vera
-        const STW = parseFloat(document.getElementById('inp-stw').value); // Velocità barca
-        const Set = parseFloat(document.getElementById('inp-set').value); // Direzione corrente
-        const Drift = parseFloat(document.getElementById('inp-drift').value); // Velocità corrente
+        const COG = parseFloat(document.getElementById('inp-cog').value); 
+        const STW = parseFloat(document.getElementById('inp-stw').value); 
+        const Set = parseFloat(document.getElementById('inp-set').value); 
+        const Drift = parseFloat(document.getElementById('inp-drift').value); 
 
-        // Converto in radianti per i calcoli trigonometrici
         const toRad = Math.PI / 180;
         const toDeg = 180 / Math.PI;
 
-        // Componenti vettoriali (Asse Y = Nord, Asse X = Est)
-        // Vettore risultante sul fondo = Vettore Barca - Vettore Corrente
-        // Poiché vogliamo arrivare a COG, calcoliamo il vettore che la barca deve fare per contrastare la corrente
         const Vwx = (STW * Math.sin(COG * toRad)) - (Drift * Math.sin(Set * toRad));
         const Vwy = (STW * Math.cos(COG * toRad)) - (Drift * Math.cos(Set * toRad));
 
-        // Rotta da tenere al timone (CTW)
         let CTW = Math.atan2(Vwx, Vwy) * toDeg;
         if (CTW < 0) CTW += 360;
 
-        // Velocità effettiva sul fondo (SOG)
         const SOG = Math.sqrt((Vwx * Vwx) + (Vwy * Vwy));
 
-        // Mostra risultati
         const resDiv = document.getElementById('current-result');
         resDiv.style.display = 'block';
         resDiv.innerHTML = `
